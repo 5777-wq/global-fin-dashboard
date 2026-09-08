@@ -251,20 +251,22 @@ test('calcMA: 前 n-1 为 null，第 n 项等于手算均值', () => {
 
 /* ================= 产业链 ================= */
 
-test('产业链：≥4 条，每条 ≥4 环节，每环节 3-6 只成分股', () => {
+test('产业链：≥4 条，每条 ≥4 环节，每环节 3-8 只成分股（全球化后核心环节允许 7-8）', () => {
   const chains = W.INDUSTRY_CHAINS;
   assert.ok(chains.length >= 4, '产业链数 ' + chains.length);
   chains.forEach(c => {
     assert.ok(c.links.length >= 4, c.name + ' 环节数 ' + c.links.length);
     c.links.forEach(l => {
-      assert.ok(l.stocks.length >= 3 && l.stocks.length <= 6, `${c.name}/${l.name} 成分股 ${l.stocks.length}`);
+      assert.ok(l.stocks.length >= 3 && l.stocks.length <= 8, `${c.name}/${l.name} 成分股 ${l.stocks.length}`);
     });
   });
 });
 
 test('产业链：代码格式合法（sh/sz + 6 位），无重复定义冲突', () => {
   W.INDUSTRY_CHAINS.forEach(c => c.links.forEach(l => l.stocks.forEach(s => {
-    assert.match(s.symbol, /^(sh|sz)\d{6}$/, `${c.name}/${l.name}/${s.name} = ${s.symbol}`);
+    // 全球版：A股 sh/sz+6位、港股 hk+4~5位、美股 us+代码（全部实测有效）
+    assert.match(s.symbol, /^(sh|sz)\d{6}$|^hk\d{4,5}$|^us[A-Za-z0-9.]{1,8}$/,
+      `${c.name}/${l.name}/${s.name} = ${s.symbol}`);
     assert.ok(s.name && s.name.length > 1, '名称非空');
   })));
 });

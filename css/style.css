@@ -568,3 +568,37 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
   color: var(--text-faint); font-family: var(--font-mono); }
 .sp-matrix { display: none; }
 @keyframes spRise { from { opacity: 0; transform: translateY(10px); } }
+
+/* ============================================================ 板块热度表（产业链入口） ============================================================ */
+.chain-table { border-top: 1px solid var(--border); }
+.crow { display: grid;
+  grid-template-columns: 44px 130px 96px 90px 1fr 1fr 120px 20px;
+  gap: 12px; align-items: center;
+  padding: 10px 8px 10px 4px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out); }
+.crow:hover, .crow.open { background: var(--bg-hover); }
+.crow:focus-visible { outline: none; background: var(--bg-hover); }
+.cr-no { font-size: 10px; color: var(--text-faint); }
+.cr-name { font-size: 13px; font-weight: 600; }
+.cr-mix { font-size: 10px; color: var(--text-tertiary); }
+.cr-avg { font-size: 13px; font-weight: 600; text-align: right; }
+.cr-best, .cr-worst { font-size: 11px; color: var(--text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cr-best b, .cr-worst b { font-weight: 500; }
+.cr-heat { height: 3px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.cr-heat-bar { display: block; height: 100%; background: var(--accent-signature);
+  transform-origin: left center; transform: scaleX(0);
+  transition: transform var(--dur-med) var(--ease-out); }
+.cr-arrow { text-align: right; color: var(--text-faint); font-size: 10px; }
+.chain-open { padding: 14px 4px 8px; background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border); }
+
+/* LOGO（加密本地图标 / 美股 favicon；加载失败自动移除） */
+.qlogo { width: 16px; height: 16px; border-radius: 2px; margin-right: 8px; vertical-align: -3px; }
+.hero-logo-img { width: 14px; height: 14px; vertical-align: -2px; }
+
+/* 加密情绪（与 A 股同构的第二块） */
+.mood-crypto { margin-bottom: 44px; }
+.mood-crypto:empty { display: none; }

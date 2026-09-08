@@ -200,9 +200,9 @@ await test('新闻备源（东财）可用：req_trace 必填已处理', async (
 /* ---------- 5. 产业链成分股：逐一实测 ---------- */
 await test('产业链：全部成分股代码真实有效（价格非 0、名称匹配）', async () => {
   const src = readFileSync(path.join(ROOT, 'js/data/industry-chains.js'), 'utf8');
-  const stocks = [...src.matchAll(/\{\s*name:\s*'([^']+)',\s*symbol:\s*'([a-z]{2}\d{6})'\s*\}/g)]
+  const stocks = [...src.matchAll(/\{\s*name:\s*'([^']+)',\s*symbol:\s*'([A-Za-z0-9.]{4,12})'\s*\}/g)]
     .map(m => ({ name: m[1], symbol: m[2] }));
-  assert.ok(stocks.length >= 60, '仅解析到 ' + stocks.length + ' 只');
+  assert.ok(stocks.length >= 120, '全球版成分股应 ≥120 只，仅解析到 ' + stocks.length + ' 只');
 
   const quotes = new Map();
   for (let i = 0; i < stocks.length; i += 50) {
@@ -210,7 +210,7 @@ await test('产业链：全部成分股代码真实有效（价格非 0、名称
     const res = await get('https://qt.gtimg.cn/q=' + part.map(s => s.symbol).join(','));
     const text = new TextDecoder('gbk').decode(await res.arrayBuffer());
     text.split(';').forEach(line => {
-      const m = line.match(/v_([a-z]{2}\d{6})="(.*)"/);
+      const m = line.match(/v_([A-Za-z0-9.]+)="(.*)"/);
       if (!m) return;
       const f = m[2].split('~');
       quotes.set(m[1], { name: f[1], price: Number(f[3]) });

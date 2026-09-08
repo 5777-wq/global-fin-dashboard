@@ -40,6 +40,7 @@
     chainQuotes: new Map(),
     watchQuotes: new Map(),   // 自选里"轮询全集之外"的标的行情（自选孤岛修复）
     openLinks: new Set(),
+    openChains: new Set(),   // 热度表中展开的板块
     breadth: null,
     breadthAt: null,
     breadthHist: [],          // 情绪逐日快照（localStorage 持久化，来源 Store.breadthHist）
@@ -67,7 +68,7 @@
     'heatCanvas', 'heatTip', 'heatWrap', 'heatSection', 'heatSub', 'heatSizeToggle',
     'heatReset', 'heatZoom', 'heatHint',
     'newsList', 'newsSub', 'chainList', 'chainSub', 'reportList', 'reportSub',
-    'moodSub', 'moodScore', 'moodBand', 'moodFill', 'breadthGrid', 'distWrap', 'distSub', 'moodSpark', 'heroStrip',
+    'moodSub', 'moodScore', 'moodBand', 'moodFill', 'breadthGrid', 'distWrap', 'distSub', 'moodSpark', 'heroStrip', 'moodCrypto',
     'searchInput', 'searchResults', 'settingsBtn', 'settingsModal', 'settingsClose',
     'segUpdown', 'segRefresh', 'swDegraded', 'sourceStatus', 'updatedLine',
     'detailName', 'detailCode', 'detailPrice', 'detailChg', 'detailStar', 'detailStats',
@@ -84,6 +85,34 @@
   let watchSet = new Set();
   function refreshWatchSet() {
     watchSet = new Set(window.Store.watchlist.all().map(x => x.symbol));
+  }
+
+  /* ---- LOGO：加密=本地化开源图标集(MIT)；美股=域名 favicon(免密钥)；A股无稳定免费源，不造假 ---- */
+  const US_DOMAINS = {
+    'usAAPL': 'apple.com', 'usNVDA': 'nvidia.com', 'usMSFT': 'microsoft.com', 'usTSLA': 'tesla.com',
+    'usAMZN': 'amazon.com', 'usGOOG': 'google.com', 'usMETA': 'meta.com', 'usAVGO': 'broadcom.com',
+    'usAMD': 'amd.com', 'usQCOM': 'qualcomm.com', 'usINTC': 'intel.com', 'usTSM': 'tsmc.com',
+    'usASML': 'asml.com', 'usAMAT': 'appliedmaterials.com', 'usLRCX': 'lnvtx.com', 'usPLTR': 'palantir.com',
+    'usENPH': 'enphase.com', 'usFSLR': 'firstsolar.com', 'usSEDG': 'solaredge.com', 'usFLNC': 'fluenceenergy.com',
+    'usPFE': 'pfizer.com', 'usMRK': 'msd.com', 'usJNJ': 'jnj.com', 'usLMT': 'lockheedmartin.com',
+    'usRTX': 'rtx.com', 'usNOC': 'northropgrumman.com', 'usCHPT': 'chargepoint.com',
+    'usNIO': 'nio.com', 'usXPEV': 'xiaopeng.com', 'usLI': 'lixiang.com',
+  };
+  function logoURL(q) {
+    if (!q) return null;
+    if (q.market === 'crypto') {
+      const base = String(q.code || q.symbol || '').replace(/USDT$/i, '').toLowerCase();
+      return base ? 'assets/icons/crypto/' + base + '.svg' : null;
+    }
+    if (/^us/i.test(q.symbol || '') && US_DOMAINS[q.symbol]) {
+      return 'https://www.google.com/s2/favicons?domain=' + US_DOMAINS[q.symbol] + '&sz=64';
+    }
+    return null;
+  }
+  function logoImg(q, cls) {
+    const url = logoURL(q);
+    return url ? `<img class="${cls}" src="${escapeHTML(url)}" alt="" loading="lazy"
+      onerror="this.remove()">` : '';
   }
 
   /* ==================== 行情抓取（含降级链） ==================== */
@@ -277,7 +306,7 @@
         tabindex="0" role="button" aria-label="${escapeHTML(q.name)} 详情"
         style="animation-delay:${delay}ms">
         <div class="qr-name-wrap" style="min-width:0">
-          <div class="qr-name">${showDeg ? '<span class="qc-flag" title="' + escapeHTML(degTitle) + '">' + (deg === 'cache' ? '缓存' : '备源') + '</span>' : ''}${escapeHTML(q.name)}</div>
+          <div class="qr-name">${logoImg(q, 'qlogo')}${showDeg ? '<span class="qc-flag" title="' + escapeHTML(degTitle) + '">' + (deg === 'cache' ? '缓存' : '备源') + '</span>' : ''}${escapeHTML(q.name)}</div>
           <div class="qr-code">${escapeHTML(q.code || q.symbol)}</div>
         </div>
         <span class="qr-price num" data-price="${escapeHTML(q.symbol)}">${price}</span>
@@ -346,7 +375,7 @@
       const cls = pctClass(q.changePct);
       const code = sym.startsWith('EM:') ? '' : escapeHTML(q.code || sym);
       return `<div class="hero-cell" data-symbol="${escapeHTML(sym)}" tabindex="0" role="button" aria-label="${escapeHTML(q.name)} 详情">
-        <div class="hero-label"><span>${escapeHTML(q.name)}</span><span>${code}</span></div>
+        <div class="hero-label"><span>${logoImg(q, 'hero-logo-img')}${escapeHTML(q.name)}</span><span>${code}</span></div>
         <div class="hero-value" data-price="${escapeHTML(sym)}">${fmt(q.price, digits)}</div>
         <div class="hero-chg ${cls}"><span data-hero-chg>${fmtChg(q.change, digits)}  ${fmtPct(q.changePct)}</span></div>
       </div>`;
@@ -564,6 +593,9 @@
         if (state.heatMode === 'crypto') openDetail({ symbol: p.code, name: p.name, code: p.code, market: 'crypto', binance: p.binance || p.code });
         else openDetail({ symbol: p.secid ? 'EM:' + p.secid : p.code, name: p.name, code: p.code, market: 'cn', secid: p.secid, tencent: tencentOfSecid(p.secid) });
       },
+      // 加密热力图 tile 印 LOGO（本地化图标集）；A 股无免费 logo 源，维持文字
+      iconFor: (item) => (item.payload && item.payload.market === 'crypto')
+        ? logoURL({ market: 'crypto', code: item.payload.code }) : null,
       // 缩放/平移时同步"复位 ×N"按钮，首次交互后淡出提示
       onViewportChange: (v) => {
         el.heatReset.hidden = v.zoom <= 1.001;
@@ -666,6 +698,64 @@
     return null;
   }
 
+  /* ---- 加密宽度：与 A 股同一套口径（上涨占比 = 上涨对 ÷ (上涨+下跌对)）---- */
+  async function ensureCryptoRows() {
+    if (state.heatItems.crypto && state.heatItems.crypto.length) return state.heatItems.crypto;
+    await loadHeatCrypto();
+    return state.heatItems.crypto || [];
+  }
+
+  function renderMoodCrypto(rows) {
+    const box = el.moodCrypto;
+    if (!box) return;
+    const valid = (rows || []).filter(r => r.changePct !== null && r.changePct !== undefined && !isNaN(r.changePct));
+    if (!valid.length) {
+      box.innerHTML = '';
+      return;
+    }
+    const up = valid.filter(r => r.changePct > 0).length;
+    const down = valid.filter(r => r.changePct < 0).length;
+    const decisive = up + down;
+    const score = decisive ? (up / decisive) * 100 : null;
+    const avg = valid.reduce((s2, r) => s2 + r.changePct, 0) / valid.length;
+    const amount = valid.reduce((s2, r) => s2 + (r.amount || 0), 0);
+    const band = window.Breadth.scoreBand(score);
+    const cls = pctClass(avg);
+    const maxAbs = Math.max(...valid.map(r => Math.abs(r.changePct)), 0.0001);
+    const movers = valid.slice().sort((a, b) => b.changePct - a.changePct);
+    const heat = (v) => Math.min(1, Math.abs(v) / maxAbs).toFixed(3);
+    box.innerHTML = `<div class="section-head" style="margin-top:32px">
+        <span class="sec-no">02</span>
+        <h2 class="section-title">加密宽度</h2>
+        <span class="sec-line"></span>
+        <span class="section-sub">${valid.length} 个 USDT 交易对 · 币安 · 每 ${window.Store.settings.get().refresh}s 刷新</span>
+      </div>
+      <div class="mood-top">
+        <div class="thermo-card">
+          <div class="thermo-label">加密情绪指数</div>
+          <div class="thermo-score num" id="cryptoScore">${score === null ? '--' : Math.round(score)}</div>
+          <div class="thermo-band ${band.cls}">${band.label} · 上涨占比 ${score === null ? '--' : score.toFixed(1) + '%'}</div>
+          <div class="thermo-track" aria-hidden="true"><span class="thermo-fill" style="transform:scaleX(${(score / 100).toFixed(4)})"></span></div>
+          <div class="thermo-scale" aria-hidden="true"><span>0 恐慌</span><span>50</span><span>100 亢奋</span></div>
+          <div class="thermo-note">上涨对 ÷ (上涨 + 下跌对) × 100，剔除平盘对</div>
+        </div>
+        <div class="breadth-grid">
+          <div class="bd-cell"><div class="bd-label">上涨 / 下跌对</div>
+            <div class="bd-value num"><span class="up">${up}</span> / <span class="down">${down}</span></div>
+            <div class="bd-sub num">平盘 ${valid.length - up - down}</div></div>
+          <div class="bd-cell"><div class="bd-label">24h 涨跌王</div>
+            <div class="bd-value num ${pctClass(movers[0].changePct)}">${escapeHTML(movers[0].name)}</div>
+            <div class="bd-sub num">${fmtPct(movers[0].changePct)} · 热度 ${heat(movers[0].changePct)}</div></div>
+          <div class="bd-cell"><div class="bd-label">24h 跌幅王</div>
+            <div class="bd-value num ${pctClass(movers[movers.length - 1].changePct)}">${escapeHTML(movers[movers.length - 1].name)}</div>
+            <div class="bd-sub num">${fmtPct(movers[movers.length - 1].changePct)} · 热度 ${heat(movers[movers.length - 1].changePct)}</div></div>
+          <div class="bd-cell"><div class="bd-label">平均涨跌 / 24h 额</div>
+            <div class="bd-value num ${cls}">${fmtPct(avg)}</div>
+            <div class="bd-sub num">成交额 ${amount ? fmtVol(amount) : '--'}</div></div>
+        </div>
+      </div>`;
+  }
+
   /* ==================== 市场宽度 / 情绪 ==================== */
 
   // 复用 G3 热力图的全市场 diff；热力图还没初始化时才自己拉一次（30s 内不重复）
@@ -688,6 +778,7 @@
       window.Store.get('breadthHist', []), state.breadth.score, state.breadth.total);
     window.Store.set('breadthHist', state.breadthHist);
     renderMood();
+    ensureCryptoRows().then(renderMoodCrypto);   // 加密宽度：与 A 股并列，不再"只有 A 股"
   }
 
   function renderMood() {
@@ -1218,76 +1309,117 @@
   }
 
   function renderChains() {
-    refreshWatchSet();   // 展开环节里的成分股卡片走 cardHTML，需要最新自选集合
-    const html = window.INDUSTRY_CHAINS.map(chain => {
-      const avgs = chain.links.map(linkAvg);
-      const valid = avgs.filter(v => v !== null);
-      const chainAvg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
-      const maxAbs = Math.max(0.5, ...avgs.map(v => Math.abs(v || 0)));
+    const stats = window.INDUSTRY_CHAINS.map(chain => {
+      const all = chain.links.flatMap(l => l.stocks);
+      const vals = all.map(sk => { const q = state.chainQuotes.get(sk.symbol); return q ? q.changePct : null; })
+        .filter(v => v !== null && v !== undefined && !isNaN(v));
+      const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+      let best = null, worst = null;
+      all.forEach(sk => {
+        const q = state.chainQuotes.get(sk.symbol);
+        if (!q || q.changePct === null || q.changePct === undefined || isNaN(q.changePct)) return;
+        if (!best || q.changePct > best.pct) best = { name: sk.name, pct: q.changePct };
+        if (!worst || q.changePct < worst.pct) worst = { name: sk.name, pct: q.changePct };
+      });
+      const mix = { A: 0, H: 0, US: 0 };
+      all.forEach(sk => {
+        if (/^hk/.test(sk.symbol)) mix.H++;
+        else if (/^us/i.test(sk.symbol)) mix.US++;
+        else mix.A++;
+      });
+      return { chain, avg, best, worst, mix, total: all.length };
+    }).sort((a, b) => (b.avg ?? -99) - (a.avg ?? -99));
 
-      const nodes = chain.links.map((link, i) => {
-        const avg = avgs[i];
-        const key = chain.id + ':' + i;
-        const open = state.openLinks.has(key);
-        const cls = pctClass(avg);
-        const ratio = avg === null ? 0 : Math.min(1, Math.abs(avg) / maxAbs);
-        const color = avg === null ? 'rgba(255,255,255,0.15)'
-          : `var(--${avg > 0 ? 'up' : avg < 0 ? 'down' : 'text-tertiary'})`;
-        return `<div class="link-node${open ? ' open' : ''}" data-link="${key}" tabindex="0" role="button"
-            title="${escapeHTML(link.name + (link.desc ? '：' + link.desc : '') + '（平均涨跌 ' + fmtPct(avg) + '）')}">
-          <div class="link-name">${escapeHTML(link.name)}</div>
-          <div class="link-pct num ${cls}">${fmtPct(avg)}</div>
-          <div class="link-bar-track"><span class="link-bar" style="transform:scaleX(${ratio.toFixed(3)});background:${color}"></span></div>
-          <div class="link-count">${link.stocks.length} 只成分股</div>
-        </div>`;
-      }).join('<span class="chain-arrow" aria-hidden="true">→</span>');
-
-      const details = chain.links.map((link, i) => {
-        const key = chain.id + ':' + i;
-        if (!state.openLinks.has(key)) return '';
-        const cards = link.stocks.map((s, j) => {
-          const q = state.chainQuotes.get(s.symbol) ||
-            { symbol: s.symbol, name: s.name, code: s.symbol.slice(2), market: 'cn', price: null, change: null, changePct: null };
-          return rowHTML(q, false);
-        }).join('');
-        return `<div class="link-detail open" data-detail="${key}">
-          <div class="section-head"><h3 class="section-title">${escapeHTML(link.name)} · 成分股</h3>
-            ${link.desc ? `<span class="section-sub">${escapeHTML(link.desc)}</span>` : ''}</div>
-          <div class="card-grid">${cards}</div></div>`;
-      }).join('');
-
-      return `<div class="chain-card" data-chain="${chain.id}">
-        <div class="chain-head">
-          <span class="chain-name">${escapeHTML(chain.name)}</span>
-          <span class="chain-avg num ${pctClass(chainAvg)}">整体 ${fmtPct(chainAvg)}</span>
-        </div>
-        <div class="chain-flow">${nodes}</div>
-        ${details}
-      </div>`;
+    const maxAbs = Math.max(0.5, ...stats.map(x => Math.abs(x.avg || 0)));
+    const rows = stats.map((st, i) => {
+      const open = state.openChains.has(st.chain.id);
+      const cls = pctClass(st.avg);
+      const ratio = st.avg === null ? 0 : Math.min(1, Math.abs(st.avg) / maxAbs);
+      const mixTxt = [st.mix.A ? st.mix.A + 'A' : '', st.mix.H ? st.mix.H + 'H' : '', st.mix.US ? st.mix.US + 'US' : '']
+        .filter(Boolean).join('·');
+      return `<div class="crow${open ? ' open' : ''}" data-chain="${st.chain.id}" tabindex="0" role="button"
+          aria-expanded="${open}">
+        <span class="cr-no num">${String(i + 1).padStart(2, '0')}</span>
+        <span class="cr-name">${escapeHTML(st.chain.name)}</span>
+        <span class="cr-mix num" title="成分股市场分布">${mixTxt || '--'}</span>
+        <span class="cr-avg num ${cls}">${fmtPct(st.avg)}</span>
+        <span class="cr-best num" title="领涨">${st.best ? escapeHTML(st.best.name) + ' <b class="up">' + fmtPct(st.best.pct) + '</b>' : '--'}</span>
+        <span class="cr-worst num" title="领跌">${st.worst ? escapeHTML(st.worst.name) + ' <b class="down">' + fmtPct(st.worst.pct) + '</b>' : '--'}</span>
+        <span class="cr-heat"><span class="cr-heat-bar" style="transform:scaleX(${ratio.toFixed(3)})"></span></span>
+        <span class="cr-arrow">${open ? '▾' : '▸'}</span>
+      </div>` +
+      (open ? renderChainOpen(st.chain) : '');
     }).join('');
-    el.chainList.innerHTML = html;
-    clearStagger(el.chainList);
+    el.chainList.innerHTML = `<div class="chain-table">${rows || '<div class="empty">板块数据加载中…</div>'}</div>`;
   }
 
-  // 只更新环节强度数值/热力条与成分股卡片数字，保留展开态与焦点
+  // 展开的单个板块：环节流程条 + 已展开环节的成分股
+  function renderChainOpen(chain) {
+    const nodes = chain.links.map((link, i) => {
+      const key = chain.id + ':' + i;
+      const open = state.openLinks.has(key);
+      const avg = linkAvg(link);
+      const cls = pctClass(avg);
+      return `<div class="link-node${open ? ' open' : ''}" data-link="${key}" tabindex="0" role="button"
+          title="${escapeHTML(link.name)} ${fmtPct(avg)} · ${escapeHTML(link.desc || '')}">
+        <div class="link-name">${escapeHTML(link.name)}</div>
+        <div class="link-pct num ${cls}">${fmtPct(avg)}</div>
+        <div class="link-bar-track"><span class="link-bar"></span></div>
+        <div class="link-count">${link.stocks.length} 只成分股</div>
+      </div>`;
+    }).join('<span class="chain-arrow" aria-hidden="true">→</span>');
+    const details = chain.links.map((link, i) => {
+      const key = chain.id + ':' + i;
+      if (!state.openLinks.has(key)) return '';
+      const cards = link.stocks.map(sj => {
+        const q = state.chainQuotes.get(sj.symbol) ||
+          { symbol: sj.symbol, name: sj.name, code: sj.symbol.replace(/^[a-z]{2}/i, ''), market: 'cn', price: null, change: null, changePct: null };
+        return rowHTML(q, false);
+      }).join('');
+      return `<div class="link-detail open">
+        <div class="section-head"><h3 class="section-title">${escapeHTML(link.name)} · 全球成分股</h3></div>
+        <div class="card-grid">${cards}</div></div>`;
+    }).join('');
+    return `<div class="chain-open"><div class="chain-flow">${nodes}</div>${details}</div>`;
+  }
+
+  // 增量更新：只改数字/条形/颜色，不重建 DOM（否则展开态、hover、焦点每 10s 丢一次）
   function patchChains() {
     window.INDUSTRY_CHAINS.forEach(chain => {
-      const card = el.chainList.querySelector(`[data-chain="${chain.id}"]`);
-      if (!card) return;
-      const avgs = chain.links.map(linkAvg);
-      const valid = avgs.filter(v => v !== null);
-      const chainAvg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
-      const maxAbs = Math.max(0.5, ...avgs.map(v => Math.abs(v || 0)));
-
-      const head = card.querySelector('.chain-avg');
-      if (head) {
-        head.textContent = '整体 ' + fmtPct(chainAvg);
-        head.className = 'chain-avg num ' + pctClass(chainAvg);
+      // 热度表行
+      const row = el.chainList.querySelector(`[data-chain="${chain.id}"]`);
+      if (row) {
+        const avgs = chain.links.map(linkAvg);
+        const valid = avgs.filter(v => v !== null);
+        const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+        let best = null, worst = null;
+        chain.links.flatMap(l => l.stocks).forEach(sk => {
+          const q = state.chainQuotes.get(sk.symbol);
+          if (!q || q.changePct === null || q.changePct === undefined || isNaN(q.changePct)) return;
+          if (!best || q.changePct > best.pct) best = { name: sk.name, pct: q.changePct };
+          if (!worst || q.changePct < worst.pct) worst = { name: sk.name, pct: q.changePct };
+        });
+        const cls = pctClass(avg);
+        const avgEl = row.querySelector('.cr-avg');
+        if (avgEl) {
+          avgEl.textContent = fmtPct(avg);
+          avgEl.className = 'cr-avg num ' + cls;
+        }
+        const bestEl = row.querySelector('.cr-best');
+        if (bestEl && best) bestEl.innerHTML = escapeHTML(best.name) + ' <b class="up">' + fmtPct(best.pct) + '</b>';
+        const worstEl = row.querySelector('.cr-worst');
+        if (worstEl && worst) worstEl.innerHTML = escapeHTML(worst.name) + ' <b class="down">' + fmtPct(worst.pct) + '</b>';
+        const bar = row.querySelector('.cr-heat-bar');
+        if (bar && avg !== null) {
+          const maxAbs = 3;   // 与全局涨跌幅口径一致的封顶
+          bar.style.transform = 'scaleX(' + Math.min(1, Math.abs(avg) / maxAbs).toFixed(3) + ')';
+        }
       }
+      // 环节节点
       chain.links.forEach((link, i) => {
-        const node = card.querySelector(`[data-link="${chain.id}:${i}"]`);
+        const node = el.chainList.querySelector(`[data-link="${chain.id}:${i}"]`);
         if (!node) return;
-        const avg = avgs[i];
+        const avg = linkAvg(link);
         const pctEl = node.querySelector('.link-pct');
         if (pctEl) {
           pctEl.textContent = fmtPct(avg);
@@ -1295,12 +1427,14 @@
         }
         const bar = node.querySelector('.link-bar');
         if (bar) {
-          const ratio = avg === null ? 0 : Math.min(1, Math.abs(avg) / maxAbs);
-          bar.style.transform = `scaleX(${ratio.toFixed(3)})`;
+          const avgAbs = Math.abs(link.stocks.reduce((acc, sk) => {
+            const q = state.chainQuotes.get(sk.symbol);
+            return acc + (q && q.changePct !== null && q.changePct !== undefined ? q.changePct : 0);
+          }, 0) / Math.max(1, link.stocks.length));
+          bar.style.transform = 'scaleX(' + Math.min(1, avgAbs / 3).toFixed(3) + ')';
           bar.style.background = avg === null ? 'rgba(255,255,255,0.15)'
             : `var(--${avg > 0 ? 'up' : avg < 0 ? 'down' : 'text-tertiary'})`;
         }
-        node.title = `${link.name}${link.desc ? '：' + link.desc : ''}（平均涨跌 ${fmtPct(avg)}）`;
       });
     });
     patchCards(el.chainList);
@@ -1704,10 +1838,18 @@
         if (state.detail && state.detail.symbol === sym) updateStar();
         return;
       }
-      const card = e.target.closest('.quote-card');
+      const card = e.target.closest('.qrow, .hero-cell, .quote-card');
       if (card) {
         const t = targetFromSymbol(card.getAttribute('data-symbol'));
         if (t) openDetail(t);
+        return;
+      }
+      const crow = e.target.closest('[data-chain]');
+      if (crow) {
+        const id = crow.getAttribute('data-chain');
+        if (state.openChains.has(id)) state.openChains.delete(id);
+        else state.openChains.add(id);
+        renderChains();
         return;
       }
       const link = e.target.closest('[data-link]');
@@ -1744,7 +1886,7 @@
       if (e.key !== 'Enter' && e.key !== ' ') return;
       // 焦点在卡片内星标上时走按钮原生激活，否则会被下面的卡片 click 劫持成"进详情"
       if (e.target.closest('[data-star]')) return;
-      const node = e.target.closest('.quote-card, .link-node');
+      const node = e.target.closest('.qrow, .hero-cell, .quote-card, .link-node, .crow');
       if (!node) return;
       e.preventDefault();
       node.click();

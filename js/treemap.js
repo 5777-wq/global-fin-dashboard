@@ -136,7 +136,7 @@ const Treemap = (() => {
 
   // ---------- 渲染 + 视口 ----------
   // items: [{ name, code, value(面积权重), pct, price, payload }]
-  function create(canvas, { onClick, onViewportChange } = {}) {
+  function create(canvas, { onClick, onViewportChange, iconFor } = {}) {
     const ctx = canvas.getContext('2d', { alpha: false });
     let layout = [];
     let data = [];
@@ -173,7 +173,29 @@ const Treemap = (() => {
     function setData(items) {
       data = items.map(it => Object.assign({}, it, { value: Math.max(it.value || 0, 0.0001) }));
       hoverIdx = -1;      // 重排后 layout 已变，旧 hover 会把白框画在别的票上
+      preloadIcons();
       relayout();
+    }
+
+    // LOGO 预加载（加密图标等）：加载完成触发一次重绘把图标画上
+    const imgCache = new Map();
+    function iconImg(item) {
+      if (!iconFor) return null;
+      const url = iconFor(item);
+      if (!url) return null;
+      let img = imgCache.get(url);
+      if (!img) {
+        img = new Image();
+        img.onload = () => draw();
+        img.src = url;
+        imgCache.set(url, img);
+      }
+      return img.complete && img.naturalWidth > 0 ? img : null;
+    }
+
+    function preloadIcons() {
+      if (!iconFor) return;
+      data.forEach(it => iconImg(it));
     }
 
     // 刷新只换色换价、不重排（文档要求"只换色不闪白"）
@@ -255,11 +277,17 @@ const Treemap = (() => {
           ctx.strokeRect(sx + 0.75, sy + 0.75, w - 1.5, h - 1.5);
         }
         // 文字条件按"屏幕尺寸"判断：放大后小块出字；字号封顶防爆炸
+        const icon = iconFor ? iconImg(c.item) : null;
         if (w >= 46 && h >= 30) {
           ctx.fillStyle = 'rgba(255,255,255,0.95)';
           ctx.font = `500 ${fontSize}px -apple-system, "PingFang SC", sans-serif`;
-          const name = fitText(ctx, c.item.name, w - 8);
-          ctx.fillText(name, sx + 4, sy + 4);
+          let tx = sx + 4, tw = w - 8;
+          if (icon && w >= 70) {   // 够大才画 LOGO，文字让位
+            ctx.drawImage(icon, sx + 5, sy + (h - 16) / 2, 16, 16);
+            tx = sx + 26; tw = w - 30;
+          }
+          const name = fitText(ctx, c.item.name, tw);
+          ctx.fillText(name, tx, sy + 4);
           if (h >= 30 + fontSize + 3) {
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
             ctx.font = `${fontSize}px ui-monospace, Menlo, monospace`;

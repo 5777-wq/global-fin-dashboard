@@ -1,6 +1,7 @@
 /* industry-chains.js —— 产业链静态定义（无新接口，成分股行情复用统一行情源）
    全部成分股代码已用腾讯行情源逐一实测（2026-08），价格非 0、名称匹配，无编造代码。
-   symbol 用腾讯格式：sh/sz + 6位代码；行情走 TencentSource，备源东财 secid（1./0. + code）。
+   symbol 用腾讯格式：A股 sh/sz+6位、港股 hk+5位、美股 us+代码（全部经腾讯源逐一实测，2026-09-07/08）。
+   全球视野：每条链在核心环节混入港股/美股龙头，与 A 股成分同权重参与环节强度计算。
    环节强度 = 环节内成分股涨跌幅简单平均。
    ⚠ 数据截止：链条定义与成分股名单为人工维护（2026-08 实测），
    新题材/成分股变更后需人工更新，不随行情自动刷新。 */
@@ -32,12 +33,16 @@ const INDUSTRY_CHAINS = [
         { name: '比亚迪', symbol: 'sz002594' },
         { name: '长城汽车', symbol: 'sh601633' },
         { name: '上汽集团', symbol: 'sh600104' },
+        { name: '特斯拉', symbol: 'usTSLA', g: 'US' },
+        { name: '蔚来', symbol: 'usNIO', g: 'US' },
+        { name: '理想汽车', symbol: 'usLI', g: 'US' },
       ]},
       { name: '充电桩', desc: '电动化的基础设施，跟随保有量增长，商业模式还在探索。', stocks: [
         { name: '特锐德', symbol: 'sz300001' },
         { name: '科士达', symbol: 'sz002518' },
         { name: '国电南瑞', symbol: 'sh600406' },
         { name: '时代电气', symbol: 'sh688187' },
+        { name: 'ChargePoint', symbol: 'usCHPT', g: 'US' },
       ]},
     ],
   },
@@ -49,6 +54,8 @@ const INDUSTRY_CHAINS = [
         { name: '中微公司', symbol: 'sh688012' },
         { name: '盛美上海', symbol: 'sh688082' },
         { name: '长川科技', symbol: 'sz300604' },
+        { name: '阿斯麦', symbol: 'usASML', g: 'US' },
+        { name: '应用材料', symbol: 'usAMAT', g: 'US' },
       ]},
       { name: '材料', desc: '硅片、光刻胶、特气等耗材，客户认证周期长，粘性强。', stocks: [
         { name: '沪硅产业', symbol: 'sh688126' },
@@ -62,11 +69,16 @@ const INDUSTRY_CHAINS = [
         { name: '圣邦股份', symbol: 'sz300661' },
         { name: '紫光国微', symbol: 'sz002049' },
         { name: '芯原股份', symbol: 'sh688521' },
+        { name: '英伟达', symbol: 'usNVDA', g: 'US' },
+        { name: '超威半导体', symbol: 'usAMD', g: 'US' },
+        { name: '高通', symbol: 'usQCOM', g: 'US' },
       ]},
       { name: '制造', desc: '把图纸变成实体芯片的重资产环节，产能利用率决定盈利。', stocks: [
         { name: '士兰微', symbol: 'sh600460' },
         { name: '三安光电', symbol: 'sh600703' },
         { name: '豪威集团', symbol: 'sh603501' },
+        { name: '台积电', symbol: 'usTSM', g: 'US' },
+        { name: '英特尔', symbol: 'usINTC', g: 'US' },
       ]},
       { name: '封测', desc: '芯片的"后道工序"：封装与测试，技术壁垒相对低但现金流稳定。', stocks: [
         { name: '长电科技', symbol: 'sh600584' },
@@ -82,6 +94,9 @@ const INDUSTRY_CHAINS = [
         { name: '海光信息', symbol: 'sh688041' },
         { name: '中科曙光', symbol: 'sh603019' },
         { name: '寒武纪', symbol: 'sh688256' },
+        { name: '英伟达', symbol: 'usNVDA', g: 'US' },
+        { name: '超威半导体', symbol: 'usAMD', g: 'US' },
+        { name: '博通', symbol: 'usAVGO', g: 'US' },
       ]},
       { name: '服务器', desc: '把芯片组装成算力单元，跟随云厂商与智算中心资本开支。', stocks: [
         { name: '浪潮信息', symbol: 'sz000977' },
@@ -100,6 +115,8 @@ const INDUSTRY_CHAINS = [
         { name: '昆仑万维', symbol: 'sz300418' },
         { name: '三六零', symbol: 'sh601360' },
         { name: '拓尔思', symbol: 'sz300229' },
+        { name: '微软', symbol: 'usMSFT', g: 'US' },
+        { name: 'Meta', symbol: 'usMETA', g: 'US' },
       ]},
       { name: '应用落地', desc: '把 AI 变成办公/金融/行业软件里的具体功能，离收入最近的一环。', stocks: [
         { name: '金山办公', symbol: 'sh688111' },
@@ -107,6 +124,7 @@ const INDUSTRY_CHAINS = [
         { name: '中科创达', symbol: 'sz300496' },
         { name: '用友网络', symbol: 'sh600588' },
         { name: '万兴科技', symbol: 'sz300624' },
+        { name: 'Palantir', symbol: 'usPLTR', g: 'US' },
       ]},
     ],
   },
@@ -132,6 +150,7 @@ const INDUSTRY_CHAINS = [
         { name: '天合光能', symbol: 'sh688599' },
         { name: '晶澳科技', symbol: 'sz002459' },
         { name: '阿特斯', symbol: 'sh688472' },
+        { name: '第一太阳能', symbol: 'usFSLR', g: 'US' },
       ]},
       { name: '逆变器与支架', desc: '电站的"神经系统"与骨架，出口占比高，跟随全球装机。', stocks: [
         { name: '阳光电源', symbol: 'sz300274' },
@@ -139,6 +158,8 @@ const INDUSTRY_CHAINS = [
         { name: '固德威', symbol: 'sh688390' },
         { name: '德业股份', symbol: 'sh605117' },
         { name: '中信博', symbol: 'sh688408' },
+        { name: 'Enphase', symbol: 'usENPH', g: 'US' },
+        { name: 'SolarEdge', symbol: 'usSEDG', g: 'US' },
       ]},
     ],
   },
@@ -149,6 +170,7 @@ const INDUSTRY_CHAINS = [
         { name: '卓胜微', symbol: 'sz300782' },
         { name: '兆易创新', symbol: 'sh603986' },
         { name: '豪威集团', symbol: 'sh603501' },
+        { name: '高通', symbol: 'usQCOM', g: 'US' },
       ]},
       { name: '面板', desc: '屏幕是终端最大的单个部件，京东方与TCL双寡头格局。', stocks: [
         { name: '京东方Ａ', symbol: 'sz000725' },
@@ -169,6 +191,8 @@ const INDUSTRY_CHAINS = [
         { name: '工业富联', symbol: 'sh601138' },
         { name: '深科技', symbol: 'sz000021' },
         { name: '传音控股', symbol: 'sh688036' },
+        { name: '苹果', symbol: 'usAAPL', g: 'US' },
+        { name: '小米集团-W', symbol: 'hk01810', g: 'HK' },
       ]},
     ],
   },
@@ -189,11 +213,14 @@ const INDUSTRY_CHAINS = [
         { name: '恒瑞医药', symbol: 'sh600276' },
         { name: '百济神州', symbol: 'sh688235' },
         { name: '复星医药', symbol: 'sh600196' },
+        { name: '中国生物制药', symbol: 'hk01177', g: 'HK' },
+        { name: '辉瑞', symbol: 'usPFE', g: 'US' },
       ]},
       { name: '医疗器械', desc: '设备与耗材，集采（统一采购降价）是这些年最大的变量。', stocks: [
         { name: '迈瑞医疗', symbol: 'sz300760' },
         { name: '联影医疗', symbol: 'sh688271' },
         { name: '乐普医疗', symbol: 'sz300003' },
+        { name: '强生', symbol: 'usJNJ', g: 'US' },
       ]},
       { name: '医疗服务', desc: '医院与检测服务，消费属性强，看客流与客单价。', stocks: [
         { name: '爱尔眼科', symbol: 'sz300015' },
@@ -224,6 +251,8 @@ const INDUSTRY_CHAINS = [
         { name: '中航沈飞', symbol: 'sh600760' },
         { name: '中航西飞', symbol: 'sz000768' },
         { name: '洪都航空', symbol: 'sh600316' },
+        { name: '洛克希德马丁', symbol: 'usLMT', g: 'US' },
+        { name: '诺斯罗普格鲁曼', symbol: 'usNOC', g: 'US' },
       ]},
       { name: '军工信息化', desc: '通信、雷达与电子对抗，现代化装备中占比持续提升。', stocks: [
         { name: '海格通信', symbol: 'sz002465' },
@@ -269,6 +298,7 @@ const INDUSTRY_CHAINS = [
         { name: '宁德时代', symbol: 'sz300750' },
         { name: '亿纬锂能', symbol: 'sz300014' },
         { name: '鹏辉能源', symbol: 'sz300438' },
+        { name: '特斯拉', symbol: 'usTSLA', g: 'US' },
       ]},
       { name: '变流器PCS', desc: '储能系统的"心脏"，把直流交流互转，与光伏逆变器技术同源。', stocks: [
         { name: '阳光电源', symbol: 'sz300274' },
@@ -284,6 +314,7 @@ const INDUSTRY_CHAINS = [
         { name: '派能科技', symbol: 'sh688063' },
         { name: '科陆电子', symbol: 'sz002121' },
         { name: '金盘科技', symbol: 'sh688676' },
+        { name: 'Fluence', symbol: 'usFLNC', g: 'US' },
       ]},
     ],
   },
@@ -318,7 +349,5 @@ const INDUSTRY_CHAINS = [
     ],
   },
 ];
-
-window.INDUSTRY_CHAINS = INDUSTRY_CHAINS;
 
 window.INDUSTRY_CHAINS = INDUSTRY_CHAINS;
