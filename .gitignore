@@ -1,0 +1,7 @@
+# 本机工具目录 / 临时产物（不属于项目本体）
+.mimosa/
+.zcode/
+_probe_tmp/
+*.bak
+.DS_Store
+Thumbs.db

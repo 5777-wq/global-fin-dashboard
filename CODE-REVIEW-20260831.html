@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GLOBAL FIN 看板 · 代码审阅报告 2026-08-31</title>
+<style>
+  :root {
+    --bg: #0a0a0a; --bg-card: #111111; --bg-elevated: #141414;
+    --text: #f5f5f7; --text-secondary: #86868b; --text-tertiary: #6e6e73;
+    --border: rgba(255,255,255,0.08); --border-hover: rgba(255,255,255,0.15);
+    --accent: #D97757; --up: #ff5c5c; --down: #2ebd85;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px; line-height: 1.65; padding: 48px 24px 80px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  .num { font-variant-numeric: tabular-nums; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px; background: rgba(255,255,255,0.06);
+    padding: 1px 6px; border-radius: 5px; color: #e8c9b8;
+  }
+  h1 { font-size: 26px; letter-spacing: -0.02em; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin-top: 8px; }
+  .summary {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 28px 0 36px;
+  }
+  .stat {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px;
+  }
+  .stat b { display: block; font-size: 26px; font-weight: 600; }
+  .stat span { font-size: 12px; color: var(--text-tertiary); }
+  .stat.p1 b { color: var(--up); }
+  .stat.p2 b { color: var(--accent); }
+  .stat.p3 b { color: var(--down); }
+  h2 {
+    font-size: 17px; margin: 36px 0 14px; padding-top: 20px;
+    border-top: 1px solid var(--border); letter-spacing: -0.01em;
+  }
+  h2 .tag {
+    display: inline-block; font-size: 11px; padding: 2px 9px; border-radius: 100px;
+    vertical-align: 3px; margin-right: 8px; font-weight: 500;
+  }
+  .tag-p1 { color: var(--up); border: 1px solid rgba(255,92,92,0.4); }
+  .tag-p2 { color: var(--accent); border: 1px solid rgba(217,119,87,0.4); }
+  .tag-p3 { color: var(--down); border: 1px solid rgba(46,189,133,0.4); }
+  .item {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px 18px; margin-bottom: 10px;
+  }
+  .item-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .item-id { font-size: 11px; color: var(--text-tertiary); font-family: ui-monospace, monospace; }
+  .item-title { font-size: 14px; font-weight: 600; }
+  .item-loc { font-size: 11px; color: var(--accent); font-family: ui-monospace, monospace; margin-left: auto; }
+  .item-body { margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
+  .item-body p { margin-top: 4px; }
+  .item-body b { color: var(--text); font-weight: 500; }
+  .fix { color: var(--down); }
+  .good {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px 18px; font-size: 13px; color: var(--text-secondary); line-height: 1.8;
+  }
+  .order { counter-reset: step; }
+  .order li {
+    list-style: none; counter-increment: step; padding: 8px 0 8px 34px; position: relative;
+    font-size: 13px; color: var(--text-secondary); border-bottom: 1px dashed var(--border);
+  }
+  .order li::before {
+    content: counter(step); position: absolute; left: 0; top: 8px;
+    width: 22px; height: 22px; border-radius: 50%; background: rgba(217,119,87,0.15);
+    color: var(--accent); font-size: 12px; display: grid; place-items: center;
+  }
+  .foot { margin-top: 40px; font-size: 12px; color: var(--text-tertiary); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>GLOBAL FIN 看板 · 代码审阅报告</h1>
+<p class="sub">审阅日期 2026-08-31 · 范围：全部 24 个源文件（index.html / css / js 19 个 / worker.js）逐行通读 + 离线测试基线复跑（logic 26 项、insight 16 项全过）· 对照 README/REVIEW 声明逐一验证</p>
+
+<div class="summary">
+  <div class="stat p1"><b class="num">8</b><span>P1 · 功能正确性</span></div>
+  <div class="stat p2"><b class="num">9</b><span>P2 · 健壮性 / 性能</span></div>
+  <div class="stat p3"><b class="num">14</b><span>P3 · 打磨 / 工程</span></div>
+  <div class="stat"><b class="num">31</b><span>条目合计</span></div>
+</div>
+
+<div class="good">
+  <b style="color:var(--text)">总体评价：</b>工程质量在同类纯前端项目里属于上乘——降级链闭环、竞态守卫（chartGen）、增量 DOM 更新、
+  动效只动 transform/opacity、93 项测试覆盖口径与自洽性，这些都是难得的好习惯。下面的条目全部是
+  <b style="color:var(--text)">在已验收基线之上新发现的问题</b>（REVIEW.md 未覆盖），按影响排序，不含任何凑数项。
+</div>
+
+<!-- ============ P1 ============ -->
+<h2><span class="tag tag-p1">P1</span>功能正确性 —— 会产生错误数据或失效功能</h2>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P1-1</span><span class="item-title">自选"孤岛"：搜索加入的自选永远不刷新</span><span class="item-loc">app.js · fetchAllQuotes / renderWatchlist</span></div>
+  <div class="item-body">
+    <p><b>现象：</b>轮询全集只有 <code>TENCENT_SYMS + EM_SECIDS + CRYPTO_FEATURED</code>（约 50 个 symbol）。用户从搜索进入任意一只冷门股详情页点 ★（symbol 形如 <code>EM:1.603xxx</code>），该 symbol 不在轮询集合里，自选页卡片永远走占位分支显示 <code>--</code>，且 <code>refreshDetailQuote</code> 不写 <code>Cache</code>，连缓存兜底都没有。</p>
+    <p><b>影响：</b>自选核心功能对"宇宙外"标的完全失效，用户无感知。</p>
+    <p class="fix"><b>修复：</b>fetchAllQuotes 时把 <code>Store.watchlist.all()</code> 的 symbol 并入轮询（tencent 前缀的走腾讯批请求、EM: 走 secid 批请求）；同时 watchlist 存 <code>{symbol, tencent, secid}</code> 以便直接分组，并在 refreshDetailQuote 成功后补 <code>Cache.set</code>。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P1-2</span><span class="item-title">降级圆点与 ★ 星标视觉重叠，且修正它的 CSS 是死规则</span><span class="item-loc">style.css:191 · app.js cardHTML</span></div>
+  <div class="item-body">
+    <p><b>现象：</b><code>.degrade-dot</code> 绝对定位在卡片右上角 <code>top:10px; right:10px</code>，而 ★ 按钮也在右上角（qc-head 内）。修正规则 <code>.qc-head .star + .degrade-dot { right: 34px }</code> 要求圆点在 qc-head 内部且是 star 的兄弟节点——但 DOM 里圆点是 <code>&lt;article&gt;</code> 的直接子元素、在 qc-head <b>之外</b>，选择器永不命中。</p>
+    <p><b>影响：</b>每次出现降级角标时，圆点压在星标上，两者都看不清。</p>
+    <p class="fix"><b>修复：</b>卡片里 ★ 恒存在，直接把 <code>.degrade-dot</code> 默认改为 <code>right: 34px</code>（或挪进 qc-head 用 flex 布局），删掉死规则。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P1-3</span><span class="item-title">heatVia / heatCachedAt 单变量被 A股与加密两个视图共享</span><span class="item-loc">app.js:338/341/356/359/395/483</span></div>
+  <div class="item-body">
+    <p><b>现象：</b><code>state.heatVia</code> 只有一个槽位，loadHeatCN 和 loadHeatCrypto 都往里写。后完成的加载会覆盖先完成的状态——例如 A股走了缓存、加密走主源，则热力图 A股视图和情绪页的"数据来源"标注会错误显示"实时"；反之亦然。</p>
+    <p><b>影响：</b>降级透明度造假——用户看到的来源标注不可信，违背项目"降级必须可见"的设计原则。</p>
+    <p class="fix"><b>修复：</b>改为 <code>state.heatVia = { cn: null, crypto: null }</code> 按模式存取，drawHeat/renderMood 读对应槽位。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P1-4</span><span class="item-title">北交所 920 新代码段两处漏判</span><span class="item-loc">breadth.js:28 · app.js tencentOfSecid</span></div>
+  <div class="item-body">
+    <p><b>现象：</b>① <code>limitOf</code> 只认 <code>/^(8|4)/</code> 为北交所（±30%），2024 年起启用的 <b>920 段</b>新股会按主板 ±10% 误判涨跌停家数；② <code>tencentOfSecid('0.920xxx')</code> 返回 <code>sz920xxx</code>（正确应为 <code>bj920xxx</code>），从热力图点进 920 段个股详情后，腾讯报价/K线/分时整条链全断，只剩东财不可达的备源 → 永远"暂无该周期数据"。</p>
+    <p><b>影响：</b>情绪页涨跌停统计失真（920 段封板股漏计）；920 段个股详情页图表不可用。</p>
+    <p class="fix"><b>修复：</b>limitOf 增加 <code>/^92/</code> → 30；tencentOfSecid 对 <code>0.92xxxx</code> 特判返回 <code>'bj' + code</code>；并在 breadth.test.mjs 补 920 段断言。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P1-5</span><span class="item-title">产业链行情 10s 轮询无视当前视图，白跑请求</span><span class="item-loc">app.js:1134-1138</span></div>
+  <div class="item-body">
+    <p><b>现象：</b><code>schedule('heat')</code> 有 <code>view !== 'market'</code> 门控、<code>schedule('mood')</code> 有 <code>view !== 'mood'</code> 门控，唯独 <code>schedule('chain')</code> 没有——即使用户从不打开产业链 tab，也每 10s 拉取 163 只成分股行情（腾讯 3 个分块请求），整天挂着就是上万次无效请求。</p>
+    <p><b>影响：</b>浪费带宽与上游配额，也提高被上游限流封 IP 的风险（连累其它东财/腾讯功能）。</p>
+    <p class="fix"><b>修复：</b>加 <code>if (state.view !== 'chain') return;</code> 门控；切到 chain tab 时立即补一次（setTab 已有对应分支）。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P1-6</span><span class="item-title">搜索无竞态守卫：慢的旧响应覆盖新输入</span><span class="item-loc">app.js:1023-1040</span></div>
+  <div class="item-body">
+    <p><b>现象：</b>详情图有 <code>chartGen</code> 防竞态（P1-6 已修的先例），但 <code>doSearch</code> 没有。快速连续输入"茅台"→"腾讯"时，若"茅台"的 JSONP 响应慢于"腾讯"，下拉框最终显示的是旧关键词的结果。</p>
+    <p class="fix"><b>修复：</b>加 <code>state.searchGen</code> 代次号，响应落地前比对；或干脆在发起新请求时 abort/忽略旧回调。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P1-7</span><span class="item-title">触屏长按浮层定时器未随拖动取消</span><span class="item-loc">app.js:436-443</span></div>
+  <div class="item-body">
+    <p><b>现象：</b>touchstart 起 350ms 定时器弹浮层，但 <b>touchmove 里不清除</b>。用户单指拖拽平移热力图超过 350ms，拖到一半浮层突然弹出，且浮层数据是起始点而非当前点。</p>
+    <p class="fix"><b>修复：</b>treemap 的 touchmove 已把 <code>dragged</code> 置真，bindHeatHover 侧在 touchmove（位移 &gt; 阈值）时 <code>clearTimeout(lp)</code>。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P1-8</span><span class="item-title">外汇/商品/宏观详情页 K 线永远为空——可用的 delay 镜像没有被用上</span><span class="item-loc">eastmoney.js:143-160 · worker.js:24</span></div>
+  <div class="item-body">
+    <p><b>现象：</b><code>klineFor</code> 对 119/133/101/102/103/171 系列 secid：腾讯映射返回 null，备源 <code>push2his.eastmoney.com</code> 直连不可达（README 已实测）→ 六类标的详情页图表永远"暂无该周期数据"。但 worker.js 白名单里早已躺着 <code>push2hisdelay.eastmoney.com</code>——与救活了报价的 push2delay 同源的延时镜像，<b>代码里没有任何地方用它</b>。</p>
+    <p><b>影响：</b>外汇宏观 tab 下每张卡片点进去都是空图，功能名存实亡。</p>
+    <p class="fix"><b>修复：</b>东财 getKline 先试 <code>push2hisdelay.eastmoney.com</code>（大概率直连可用，与 push2delay 同理），失败再退 push2his + 代理；成功后在 live.test 补一条外汇 K 线断言。</p>
+  </div>
+</div>
+
+<!-- ============ P2 ============ -->
+<h2><span class="tag tag-p2">P2</span>健壮性 / 性能 —— 现在能跑，但埋着雷</h2>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P2-1</span><span class="item-title">lightweight-charts 走 unpkg 且不锁版本、无本地兜底</span><span class="item-loc">index.html:211</span></div>
+  <div class="item-body">
+    <p><b>现象：</b><code>https://unpkg.com/lightweight-charts/dist/...</code> 拉的是 <b>latest</b>。v5 曾改 API（charts.js 已做 v3/v4/v5 兼容，说明踩过坑），未来 v6 再改一次详情页全废；unpkg 被墙/抽风时同样全废，只剩"暂无数据"。</p>
+    <p class="fix"><b>修复：</b>锁版本号（如 <code>lightweight-charts@4.2.0</code>），更彻底的做法是下载 standalone 文件到 <code>lib/</code> 本地引用——符合项目"零依赖、file:// 可跑"的定位，还顺便支持离线。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P2-2</span><span class="item-title">热力图每帧 2 次 getComputedStyle</span><span class="item-loc">treemap.js:191, 83-90</span></div>
+  <div class="item-body">
+    <p><b>现象：</b><code>paint()</code> 每次执行都调 <code>refreshColors()</code>（读 documentElement + body 两次计算样式）。hover 移动时 setHover → draw → paint，等于 60fps 强制样式重算，5500 块画布上这是可感知的耗电/掉帧来源。</p>
+    <p class="fix"><b>修复：</b>颜色缓存到模块级变量，仅在 <code>onUpdownChanged</code>（app.js 已在调 Treemap.refreshColors）与首次绘制时刷新，paint 内不再读。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P2-3</span><span class="item-title">详情页同一份日K发两遍请求</span><span class="item-loc">app.js:625 · loadDetailInsight</span></div>
+  <div class="item-body">
+    <p><b>现象：</b><code>openDetail</code> 并行 4 个任务，其中 loadDetailChart（period=day 时）与 loadDetailInsight（画像必须取日K）各自独立调 <code>klineFor(t,'day')</code>，同一接口同一参数发两次。</p>
+    <p class="fix"><b>修复：</b>以 <code>symbol+period</code> 为 key 做 in-flight Promise 去重（或 insight 复用 chart 已取到的 klines），省一半详情页请求。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P2-4</span><span class="item-title">缓存兜底仅存内存，页面一刷新降级链最短环断裂</span><span class="item-loc">utils.js Cache</span></div>
+  <div class="item-body">
+    <p><b>现象：</b>"主源→备源→缓存"是本项目核心卖点，但 Cache 是 <code>new Map()</code>——刷新页面后缓存清空，此时若主备源恰好都挂，直接空白。localStorage 只存了自选和设置。</p>
+    <p class="fix"><b>修复：</b>关键键（<code>q:*</code> 最近一轮、<code>heat:cn</code>、<code>news</code>、<code>report:*</code>）配额化持久化到 localStorage（带时间戳、超龄丢弃、总量封顶 ~1MB 防 QuotaExceeded）。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P2-5</span><span class="item-title">页脚状态灯颜色跟随红绿切换，语义反转</span><span class="item-loc">style.css:556-557</span></div>
+  <div class="item-body">
+    <p><b>现象：</b><code>.status-ok { color: var(--down) }</code>、<code>.status-bad { color: var(--up) }</code>。默认红涨绿跌下"正常=绿、降级=红"碰巧正确；用户切到绿涨红跌后 token 互换，"正常"变红、"降级"变绿，语义完全反了（研报评级/情绪分档用涨跌色是<b>设计意图</b>，状态灯不是）。</p>
+    <p class="fix"><b>修复：</b>状态灯改用独立 token（如 <code>--ok</code> / <code>--warn</code>）不参与红绿互换。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P2-6</span><span class="item-title">47+ 张卡片常驻 will-change: transform</span><span class="item-loc">style.css:164</span></div>
+  <div class="item-body">
+    <p><b>现象：</b>每张 .quote-card 常驻 <code>will-change: transform</code>，浏览器为每张卡维持独立合成层；自选页+产业链展开时轻松破百层，白白吃显存。</p>
+    <p class="fix"><b>修复：</b>改为 <code>.quote-card:hover { will-change: transform }</code> 或干脆删掉（translateY(-4px) 的 hover 动效不需要预提升）。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P2-7</span><span class="item-title">patchCards 每轮无条件写 DOM</span><span class="item-loc">app.js:290-294</span></div>
+  <div class="item-body">
+    <p><b>现象：</b>价格文本有判等（<code>node.textContent !== txt</code>），但 <code>.qc-row</code> 两个 span 的 class 与 textContent <b>每轮无条件重写</b>——47 卡 × 每 10s，绝大多数时候值根本没变，纯 DOM churn。</p>
+    <p class="fix"><b>修复：</b>写入前先比较，className 也可缓存上一次的 cls 再决定动不动。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P2-8</span><span class="item-title">全市场分页并发无 code 去重</span><span class="item-loc">eastmoney.js getFullMarket</span></div>
+  <div class="item-body">
+    <p><b>现象：</b>按 <code>fid=f3</code>（涨跌幅）排序拉 55 页，盘中行情跳动时相邻两页之间个股会位移——同一只股可能出现在两页里（重复），也可能跳过（漏行）。当前直接 concat，重复股会让热力图面积虚增、情绪计数虚高。</p>
+    <p class="fix"><b>修复：</b>汇总后用 <code>Map(code → row)</code> 去重再返回；漏行无解但可接受，去重是必须的。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P2-9</span><span class="item-title">情绪卡片同屏两个"上涨占比"口径</span><span class="item-loc">breadth.js:77,81 · app.js:490</span></div>
+  <div class="item-body">
+    <p><b>现象：</b>情绪指数 score = <code>up/(up+down)</code>（剔平盘），而旁边标注的"上涨占比"upRatio = <code>up/total</code>（含平盘）。同一屏两个相近但不同的数字，用户会困惑哪个才是分数的依据。</p>
+    <p class="fix"><b>修复：</b>统一口径（建议标注直接显示 <code>up/(up+down)</code> 的百分比），或文案改成"上涨占全市场比"以明示差异。</p>
+  </div>
+</div>
+
+<!-- ============ P3 ============ -->
+<h2><span class="tag tag-p3">P3</span>打磨 / 工程 —— 不影响正确性，做了一身轻松</h2>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P3-1</span><span class="item-title">渲染期热点里的重复开销</span><span class="item-loc">app.js cardHTML</span></div>
+  <div class="item-body">
+    <p>① <code>reduceMotion()</code> 每张卡调 2 次 → 一次整墙渲染约百次 <code>matchMedia</code>，应缓存为模块级布尔 + change 监听；② <code>Store.watchlist.has()</code> 内部每次 <code>JSON.parse(localStorage)</code>，renderWatchlist 渲染 N 张卡就解析 N 次，应在渲染前取一次数组转 Set 传入。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P3-2</span><span class="item-title">返回卡片墙时入场动画整体重播</span><span class="item-loc">app.js setTab → renderCardWall</span></div>
+  <div class="item-body">
+    <p>从详情页返回、切设置、切 tab 都会 renderCardWall 全量重建 + stagger-in 重播。建议：仅 tab 真正切换时播放 stagger，返回/设置变更走 patchCards 或不带动画的重建。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P3-3</span><span class="item-title">死代码与小瑕疵打包</span><span class="item-loc">多处</span></div>
+  <div class="item-body">
+    <p>① <code>utils.js fetchGBK</code> 导出但零调用（request({gbk:true}) 已覆盖），删；② index.html 两处内联 <code>style="margin-top:32px"</code> 应入 CSS；③ 无 favicon（每次打开 404 一次），可加内联 SVG data-URI；④ 建议加 <code>&lt;meta name="color-scheme" content="dark"&gt;</code> 让滚动条/表单控件跟深色；⑤ selftest 里 <code>padEnd(8)</code> 对中文等宽无效、<code>newsVia</code> 为 null 时打印字面 "null"。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P3-4</span><span class="item-title">squarify / hitTest 的微优化（非必须）</span><span class="item-loc">treemap.js</span></div>
+  <div class="item-body">
+    <p>① <code>rowRatio(row.concat(v), …)</code> 每试一个候选就复制一次数组，5500 块布局约百万级元素拷贝，可改原地 push/pop；② hitTest 线性扫 5500 块/mousemove（16ms 节流下实测可接受），想做的话按 x 排序二分或网格索引。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P3-5</span><span class="item-title">首屏瀑布可并行</span><span class="item-loc">app.js init</span></div>
+  <div class="item-body">
+    <p><code>await fetchAllQuotes()</code> 与 <code>await loadHeatCN()</code> 串行，二者无依赖。并行后首屏热力图可提前 1-3s 出现（55 页分页抓取是大头）。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P3-6</span><span class="item-title">新闻/研报定时器无条件运行</span><span class="item-loc">app.js:1132-1133</span></div>
+  <div class="item-body">
+    <p>用户从不打开新闻/研报 tab 时，60s/10min 轮询照跑。可改为首次进入 tab 才启动对应 schedule（数据已有懒加载分支，只差定时器门控）。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P3-7</span><span class="item-title">无障碍两处打磨</span><span class="item-loc">index.html / app.js</span></div>
+  <div class="item-body">
+    <p>① <code>role="tablist"</code> 的 tab 缺 <code>aria-controls</code> 与对应 <code>tabpanel</code> 关联；② 搜索框缺 <code>aria-expanded</code>/<code>aria-activedescendant</code>，键盘上下移动时读屏器不知道高亮项；③ 设置弹层无焦点圈定（focus trap），Tab 键会跑到遮罩后面的内容上。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P3-8</span><span class="item-title">静态知识层无新鲜度机制</span><span class="item-loc">masters.js / explain.js / industry-chains.js</span></div>
+  <div class="item-body">
+    <p>47 条标的属性、163 只成分股、大师文本都是人工维护——公司改名、成分股被 ST、业务叙事变化都不会有人知道该更新了。建议：文件头加"数据截止：2026-08"注释，并在自检区输出该日期，超过 3 个月就在自检区提示复核。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P3-9</span><span class="item-title">worker.js 无速率限制</span><span class="item-loc">worker.js</span></div>
+  <div class="item-body">
+    <p>域名白名单防了"开放代理"，但任何人都可以借你的 worker 高频打白名单内的上游（腾讯/东财/币安），额度耗尽或被上游封的是你的 worker IP。README 加一句风险提示即可；要真防可上 Cloudflare Rate Limiting 规则。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P3-10</span><span class="item-title">_test 无一键全跑入口</span><span class="item-loc">_test/</span></div>
+  <div class="item-body">
+    <p>6 个测试文件要敲 6 条命令。加一个 <code>_test/run-all.mjs</code> 顺序 spawn 并汇总退出码，README 改成一条命令；live 类测试注明需要网络与非交易时段容差。</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="item-head"><span class="item-id">P3-11</span><span class="item-title">功能增强建议（非缺陷，按需采纳）</span><span class="item-loc">—</span></div>
+  <div class="item-body">
+    <p>① 情绪指数历史曲线：每次 loadMood 把 {ts, score} 存内存（或 localStorage），情绪页加一条当日 sparkline，比单点数字有用得多；② 两市成交额目前显示"18442.78 亿"，可格式化为"1.84 万亿"；③ 详情页打开时同步 <code>document.title</code> 为标的名，切走还原。</p>
+  </div>
+</div>
+
+<h2><span class="tag tag-p2">顺序</span>建议修复顺序</h2>
+<ol class="order">
+  <li><b>P1-2 / P1-3 / P1-5 / P1-7</b> —— 四处都是 10 行以内的小改，先清掉见效快。</li>
+  <li><b>P1-4（920 段）+ P2-8（分页去重）</b> —— 数据正确性，改完补单测断言。</li>
+  <li><b>P1-1（自选孤岛）</b> —— 涉及轮询集合与存储结构，是 P1 里唯一需要设计一下的。</li>
+  <li><b>P1-8（push2hisdelay K线）+ P2-1（CDN 本地化）</b> —— 先把外汇 K 线救活，顺手把图表库收进本地。</li>
+  <li><b>P1-6 / P2-2 / P2-3 / P2-4</b> —— 竞态、性能与持久化缓存，一批做完。</li>
+  <li>P2 剩余 + P3 —— 随下一次功能迭代顺手带掉。</li>
+</ol>
+
+<p class="foot">本报告基于 2026-08-31 的源码静态审阅 + 离线测试复跑；P1-8 的 push2hisdelay 可用性、P2-8 的重复行概率属于推断，落地前建议用 _test/live.test.mjs 实测验证。审阅人：WorkBuddy</p>
+
+</div>
+</body>
+</html>

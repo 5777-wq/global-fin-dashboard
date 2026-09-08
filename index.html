@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>GLOBAL FIN · 全球金融看板</title>
+<meta name="description" content="全球金融看板：A股/港股/美股/加密/外汇/指数/大宗商品/宏观利率，热力图、K线、新闻流、产业链与机构研报聚合。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%23D97757'/%3E%3C/svg%3E">
+<script>
+/* 开屏状态必须在 CSS 之前挂上（防 FOUC）；2.6s 是硬上限兜底，
+   JS 正常时 init 在数据就绪后主动 reveal（见 app.js 的 revealSplash）。 */
+document.documentElement.classList.add('splash-on');
+setTimeout(function () {
+  var de = document.documentElement;
+  de.classList.remove('splash-on');
+  var s = document.getElementById('splash');
+  if (s && s.parentNode) s.parentNode.removeChild(s);
+}, 2600);
+</script>
+<link rel="stylesheet" href="css/style.css?v=20260906">
+</head>
+<body data-updown="red">
+
+<!-- ========== 开屏 ========== -->
+<div id="splash" aria-hidden="true">
+  <div class="sp-inner">
+    <div class="sp-word">GLOBAL FIN</div>
+    <div class="sp-sub">全球金融看板</div>
+    <div class="sp-load">
+      <span class="sp-track"><span class="sp-fill" id="spFill"></span></span>
+      <span class="sp-status" id="spStatus">正在连接行情源…</span>
+    </div>
+  </div>
+  <div class="sp-skip">点击任意处跳过</div>
+</div>
+
+<header class="topbar">
+  <div class="logo"><span class="logo-dot"></span><span>GLOBAL FIN</span></div>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="板块切换">
+    <button class="tab active" data-tab="all" role="tab" aria-selected="true" aria-controls="view-market">全部</button>
+    <button class="tab" data-tab="cn" role="tab" aria-selected="false" aria-controls="view-market">A股</button>
+    <button class="tab" data-tab="hkus" role="tab" aria-selected="false" aria-controls="view-market">港美</button>
+    <button class="tab" data-tab="crypto" role="tab" aria-selected="false" aria-controls="view-market">加密</button>
+    <button class="tab" data-tab="fxmacro" role="tab" aria-selected="false" aria-controls="view-market">外汇宏观</button>
+    <button class="tab" data-tab="mood" role="tab" aria-selected="false" aria-controls="view-mood">情绪</button>
+    <button class="tab" data-tab="news" role="tab" aria-selected="false" aria-controls="view-news">新闻</button>
+    <button class="tab" data-tab="chain" role="tab" aria-selected="false" aria-controls="view-chain">产业链</button>
+    <button class="tab" data-tab="report" role="tab" aria-selected="false" aria-controls="view-report">研报</button>
+    <button class="tab" data-tab="watch" role="tab" aria-selected="false" aria-controls="view-watch">自选</button>
+  </nav>
+  <div class="topbar-actions">
+    <div class="search-wrap">
+      <span class="search-icon" aria-hidden="true">⌕</span>
+      <input id="searchInput" class="search-input" type="search" placeholder="搜索代码 / 名称"
+             autocomplete="off" aria-label="搜索行情" aria-expanded="false"
+             aria-controls="searchResults" aria-autocomplete="list">
+      <div id="searchResults" class="search-results" role="listbox"></div>
+    </div>
+    <button id="settingsBtn" class="icon-btn" title="设置" aria-label="设置">设置</button>
+  </div>
+</header>
+
+<noscript>
+  <div class="noscript-box">
+    <strong>请启用 JavaScript</strong><br>
+    本看板的行情、热力图与新闻均在浏览器端实时抓取，需要 JavaScript 才能运行。
+  </div>
+</noscript>
+
+<main class="main" id="main">
+
+  <!-- ========== 市场总览 ========== -->
+  <section class="view active tab-panel" id="view-market" role="tabpanel" tabindex="-1" aria-label="market">
+    <div class="page-head">
+      <h1 class="page-title">全球市场</h1>
+      <p class="page-sub" id="marketSub">加载中…</p>
+    </div>
+    <div class="hero" id="heroStrip" role="group" aria-label="关键指数"></div>
+
+    <details class="selftest" id="selftest">
+      <summary>数据源自检</summary>
+      <pre id="selftestOut">等待抓取…</pre>
+    </details>
+
+    <div id="cardWall"></div>
+
+    <div class="section" id="heatSection">
+      <div class="section-head">
+        <h2 class="section-title">热力图</h2>
+        <span class="section-sub" id="heatSub">—</span>
+      </div>
+      <div class="heat-toolbar">
+        <button class="pill active" data-heat="cn">A股全市场</button>
+        <button class="pill" data-heat="crypto">加密市值</button>
+        <button class="pill" id="heatSizeToggle" data-size="cap">面积：市值</button>
+        <span class="heat-legend" aria-hidden="true"><i></i><b>-3%</b><b>0</b><b>+3%</b></span>
+        <button class="pill" id="heatReset" hidden>复位 ×<span id="heatZoom" class="num">1.0</span></button>
+      </div>
+      <div class="heat-wrap" id="heatWrap">
+        <div class="sk heat-sk" id="heatSk" aria-hidden="true"></div>
+        <canvas id="heatCanvas" role="img" aria-label="市场涨跌热力图（滚轮缩放，拖拽平移，右键复位）"></canvas>
+        <div class="heat-logo" aria-hidden="true"><span class="logo-dot"></span>GLOBAL FIN</div>
+        <div class="heat-hint" id="heatHint">滚轮缩放 · 拖拽平移 · 右键复位</div>
+        <div class="heat-tip" id="heatTip"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 详情 ========== -->
+  <section class="view tab-panel" id="view-detail" role="tabpanel" tabindex="-1" aria-label="detail">
+    <div class="detail-head">
+      <button class="back-btn" id="detailBack">← 返回</button>
+      <span class="detail-name" id="detailName">—</span>
+      <span class="detail-code num" id="detailCode"></span>
+      <span class="detail-price num" id="detailPrice">--</span>
+      <span class="detail-chg num" id="detailChg">--</span>
+      <button class="star" id="detailStar" title="收藏">☆</button>
+    </div>
+    <div class="detail-stats num" id="detailStats"></div>
+    <div class="heat-toolbar">
+      <button class="pill active" data-period="min">分时</button>
+      <button class="pill" data-period="day">日K</button>
+      <button class="pill" data-period="week">周K</button>
+      <button class="pill active" id="maToggle">MA5 / MA20</button>
+    </div>
+    <div class="chart-box">
+      <div id="klineChart"></div>
+      <div class="chart-empty" id="chartEmpty" hidden>暂无该周期数据</div>
+    </div>
+    <div class="section mt32" id="detailInsight"></div>
+    <div class="section mt32" id="detailReports"></div>
+  </section>
+
+  <!-- ========== 新闻 ========== -->
+  <section class="view tab-panel" id="view-news" role="tabpanel" tabindex="-1" aria-label="news">
+    <h1 class="page-title">滚动新闻</h1>
+    <p class="page-sub" id="newsSub">—</p>
+    <div class="heat-toolbar">
+      <button class="pill active" data-newsmkt="all">全部</button>
+      <button class="pill" data-newsmkt="cn">A股</button>
+      <button class="pill" data-newsmkt="global">港美</button>
+      <button class="pill" data-newsmkt="crypto">加密</button>
+    </div>
+    <div class="news-list" id="newsList"></div>
+  </section>
+
+  <!-- ========== 市场宽度 / 情绪 ========== -->
+  <section class="view tab-panel" id="view-mood" role="tabpanel" tabindex="-1" aria-label="mood">
+    <h1 class="page-title">市场宽度</h1>
+    <p class="page-sub" id="moodSub">—</p>
+
+    <div class="mood-top">
+      <div class="thermo-card" id="thermoCard">
+        <div class="thermo-label">情绪指数</div>
+        <div class="thermo-score num" id="moodScore">--</div>
+        <div class="thermo-band" id="moodBand">—</div>
+        <div class="thermo-track" aria-hidden="true">
+          <span class="thermo-fill" id="moodFill"></span>
+        </div>
+        <div class="thermo-scale" aria-hidden="true"><span>0 恐慌</span><span>50</span><span>100 亢奋</span></div>
+        <div class="thermo-note">上涨家数 ÷ (上涨 + 下跌) × 100</div>
+      </div>
+      <div class="breadth-grid" id="breadthGrid"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2 class="section-title">涨跌幅分布</h2>
+        <span class="section-sub" id="distSub">—</span>
+      </div>
+      <div class="dist-wrap" id="distWrap"></div>
+    </div>
+
+    <div class="section">
+      <div class="spark-box" id="moodSpark"></div>
+    </div>
+  </section>
+
+  <!-- ========== 产业链 ========== -->
+  <section class="view tab-panel" id="view-chain" role="tabpanel" tabindex="-1" aria-label="chain">
+    <h1 class="page-title">产业链追踪</h1>
+    <p class="page-sub" id="chainSub">环节强度 = 环节内成分股涨跌幅简单平均，点击环节展开成分股</p>
+    <div id="chainList"></div>
+  </section>
+
+  <!-- ========== 研报 ========== -->
+  <section class="view tab-panel" id="view-report" role="tabpanel" tabindex="-1" aria-label="report">
+    <h1 class="page-title">机构研报</h1>
+    <p class="page-sub" id="reportSub">—</p>
+    <div class="report-list" id="reportList"></div>
+  </section>
+
+  <!-- ========== 自选 ========== -->
+  <section class="view tab-panel" id="view-watch" role="tabpanel" tabindex="-1" aria-label="watch">
+    <h1 class="page-title">我的自选</h1>
+    <p class="page-sub">跨市场收藏，保存在本机浏览器</p>
+    <div id="watchWall"></div>
+  </section>
+
+  <footer class="footer">
+    <div class="status-line" id="sourceStatus"></div>
+    <div>
+      数据来源：腾讯财经（A股/港股/美股/全球指数、K线、分时）· 东方财富（A股全市场、外汇、大宗商品、国债收益率、搜索、研报）·
+      币安（加密行情与K线）· 新浪财经（滚动新闻）。行情为第三方公开接口数据，可能延迟，仅供参考，不构成投资建议。
+    </div>
+    <div id="updatedLine" style="margin-top:6px"></div>
+  </footer>
+</main>
+
+<!-- ========== 设置弹层 ========== -->
+<div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-label="设置">
+  <div class="modal">
+    <h2>设置</h2>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">涨跌配色</div>
+        <div class="setting-hint">切换后卡片 / 热力图 / K线同步</div>
+      </div>
+      <div class="seg" id="segUpdown">
+        <button data-updown="red" class="active">红涨绿跌</button>
+        <button data-updown="green">绿涨红跌</button>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">刷新间隔</div>
+        <div class="setting-hint">页面隐藏时自动暂停</div>
+      </div>
+      <div class="seg" id="segRefresh">
+        <button data-refresh="5">5s</button>
+        <button data-refresh="10" class="active">10s</button>
+        <button data-refresh="30">30s</button>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">降级角标</div>
+        <div class="setting-hint">数据来自备源 / 缓存时提示</div>
+      </div>
+      <button class="switch on" id="swDegraded" role="switch" aria-checked="true" aria-label="降级角标"></button>
+    </div>
+    <button class="modal-close" id="settingsClose">完成</button>
+  </div>
+</div>
+
+<!-- 图表库本地化（v4.2.3 锁版）：原 unpkg latest 不锁版本，上游发版或 CDN 不可达时详情页全废 -->
+<script src="lib/lightweight-charts.standalone.production.js?v=4.2.3"></script>
+<script src="js/utils.js?v=20260906"></script>
+<script src="js/store.js?v=20260906"></script>
+<script src="js/proxy.js?v=20260906"></script>
+<script src="js/data/universe.js?v=20260906"></script>
+<script src="js/data/industry-chains.js?v=20260906"></script>
+<script src="js/data/masters.js?v=20260906"></script>
+<script src="js/data/explain.js?v=20260906"></script>
+<script src="js/sources/tencent.js?v=20260906"></script>
+<script src="js/sources/sina.js?v=20260906"></script>
+<script src="js/sources/eastmoney.js?v=20260906"></script>
+<script src="js/sources/okx.js?v=20260906"></script>
+<script src="js/sources/binance.js?v=20260906"></script>
+<script src="js/sources/fred.js?v=20260906"></script>
+<script src="js/sources/news.js?v=20260906"></script>
+<script src="js/sources/report.js?v=20260906"></script>
+<script src="js/breadth.js?v=20260906"></script>
+<script src="js/sessions.js?v=20260906"></script>
+<script src="js/treemap.js?v=20260906"></script>
+<script src="js/charts.js?v=20260906"></script>
+<script src="js/app.js?v=20260906"></script>
+</body>
+</html>
