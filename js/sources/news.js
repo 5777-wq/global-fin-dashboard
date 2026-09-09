@@ -133,17 +133,18 @@ const NewsSource = (() => {
   }
 
   // 大V喊单名单：推特爱喊单的那批人（新闻聚合口径——免费无推特 API，用"关于他们的新闻"替代原始推文）
+  // en: 英文名 / title: 公开身份（徽章展示用）；yelen 已卸任，财长按 2026 现任为 Bessent
   const VOICES = [
-    { id: 'musk', name: '马斯克', kws: ['马斯克', 'Musk', 'SpaceX', '星链', '星舰'], flag: 'us' },
-    { id: 'trump', name: '特朗普', kws: ['特朗普', 'Trump', '白宫', ' Truth Social'], flag: 'us' },
-    { id: 'huang', name: '黄仁勋', kws: ['黄仁勋', '英伟达', 'NVIDIA', 'Jensen Huang'], flag: 'us' },
-    { id: 'altman', name: '奥尔特曼', kws: ['奥尔特曼', '奥特曼', 'Altman', 'OpenAI'], flag: 'us' },
-    { id: 'powell', name: '鲍威尔', kws: ['鲍威尔', 'Powell', '美联储主席'], flag: 'us' },
-    { id: 'cook', name: '库克', kws: ['库克', 'Tim Cook', '苹果CEO'], flag: 'us' },
-    { id: 'bezos', name: '贝索斯', kws: ['贝索斯', 'Bezos', '亚马逊创始人'], flag: 'us' },
-    { id: 'zuck', name: '扎克伯格', kws: ['扎克伯格', 'Zuckerberg', 'Meta CEO'], flag: 'us' },
-    { id: 'yellen', name: '耶伦', kws: ['耶伦', 'Yellen', '美财长'], flag: 'us' },
-    { id: 'lagarde', name: '拉加德', kws: ['拉加德', 'Lagarde', '欧洲央行行长'], flag: 'eu' },
+    { id: 'musk', name: '马斯克', en: 'Elon Musk', title: '特斯拉 / SpaceX CEO', kws: ['马斯克', 'Musk', 'SpaceX', '星链', '星舰'], flag: 'us' },
+    { id: 'trump', name: '特朗普', en: 'Donald Trump', title: '美国总统', kws: ['特朗普', 'Trump', ' Truth Social'], flag: 'us' },
+    { id: 'huang', name: '黄仁勋', en: 'Jensen Huang', title: 'NVIDIA 总裁兼 CEO', kws: ['黄仁勋', '英伟达', 'NVIDIA', 'Jensen Huang'], flag: 'us' },
+    { id: 'altman', name: '奥尔特曼', en: 'Sam Altman', title: 'OpenAI CEO', kws: ['奥尔特曼', '奥特曼', 'Altman', 'OpenAI'], flag: 'us' },
+    { id: 'powell', name: '鲍威尔', en: 'Jerome Powell', title: '美联储主席', kws: ['鲍威尔', 'Powell', '美联储主席'], flag: 'us' },
+    { id: 'cook', name: '库克', en: 'Tim Cook', title: 'Apple CEO', kws: ['库克', 'Tim Cook', '苹果CEO'], flag: 'us' },
+    { id: 'bezos', name: '贝索斯', en: 'Jeff Bezos', title: 'Amazon 创始人', kws: ['贝索斯', 'Bezos', '亚马逊创始人'], flag: 'us' },
+    { id: 'zuck', name: '扎克伯格', en: 'Mark Zuckerberg', title: 'Meta CEO', kws: ['扎克伯格', 'Zuckerberg', 'Meta CEO'], flag: 'us' },
+    { id: 'bessent', name: '贝森特', en: 'Scott Bessent', title: '美国财长', kws: ['贝森特', 'Bessent', '美财长'], flag: 'us' },
+    { id: 'lagarde', name: '拉加德', en: 'Christine Lagarde', title: '欧洲央行行长', kws: ['拉加德', 'Lagarde', '欧洲央行行长'], flag: 'eu' },
   ];
   // 命中名单：一条新闻可能涉及多人（如"马斯克回应特朗普"）
   function matchVoices(item) {

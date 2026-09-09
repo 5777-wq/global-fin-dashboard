@@ -659,16 +659,15 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
 .mood-crypto:empty { display: none; }
 
 /* ============================================================ v20260909b 追加 ============================================================ */
-/* 全球指数 ticker 行（hero 下方） */
-.globe-bar { display: flex; gap: 22px; overflow-x: auto; scrollbar-width: none;
-  padding: 10px 2px; margin-top: 14px; border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border); }
-.globe-bar::-webkit-scrollbar { display: none; }
-.gcell { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
-.gflag svg { width: 16px; height: 11px; border-radius: 1.5px; display: block; }
-.gname { font-size: 11px; color: var(--text-tertiary); }
-.gval { font-size: 12px; font-weight: 600; color: var(--text); }
-.gpct { font-size: 11px; font-weight: 600; }
+/* 全球指数卡网格（hero 同构，六大市场与中美视觉平级） */
+.globe-grid { display: grid; grid-template-columns: repeat(6, 1fr);
+  margin-top: 14px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.gcard { padding: 16px 14px 14px; border-right: 1px solid var(--border); min-width: 0; }
+.gcard:nth-child(6n) { border-right: none; }
+.gcard .hero-label { font-size: 11px; color: var(--text-tertiary); }
+.gcard .hero-value { font-size: 20px; }
+.gcard .hero-chg { font-size: 12px; }
+.gcard .flag { width: 14px; height: 10px; margin-right: 5px; }
 
 /* 旗标通用尺寸（hero label / 宏观表 / 喊单徽章） */
 .flag { width: 16px; height: 11px; border-radius: 1.5px; vertical-align: -1px; margin-right: 6px; }
@@ -709,12 +708,14 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
 .news-catbar:empty { display: none; }
 .news-catbar .pill b { margin-left: 6px; font-weight: 500; opacity: 0.65; }
 
-/* 喊单页徽章 */
+/* 喊单页徽章：英文名 + 中文名 + 身份 */
 .voice-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
-.vb { display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px; border: 1px solid var(--border); border-radius: 10px;
+.vb { display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 3px 9px; border: 1px solid var(--border); border-radius: 10px;
   font-size: 10px; color: var(--text-secondary); background: rgba(255,255,255,0.03); }
-.vb .flag { margin-right: 0; width: 13px; height: 9px; }
+.vb-en { font-size: 10px; font-weight: 600; color: var(--text); letter-spacing: 0.02em; }
+.vb-title { font-size: 9px; color: var(--text-faint); }
+.vb-title::before { content: '·'; margin-right: 5px; color: var(--text-faint); }
 
 /* 世界经济仪表盘 */
 .macro-wrap { margin-top: 8px; padding-bottom: 30px; }
@@ -737,6 +738,11 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
 @media (max-width: 640px) {
   .tech-grid { grid-template-columns: 1fr; }
   .mrow { grid-template-columns: 92px repeat(6, minmax(74px, 1fr)); }
-  .globe-bar { gap: 16px; }
+  .globe-grid { grid-template-columns: repeat(3, 1fr); }
+  .gcard:nth-child(6n) { border-right: 1px solid var(--border); }
+  .gcard:nth-child(3n) { border-right: none; }
+  .gcard { border-top: 1px solid var(--border); }
+  .globe-grid .gcard:nth-child(-n+3) { border-top: none; }
+  .gcard .hero-value { font-size: 17px; }
   .ma-menu { right: 0; left: auto; }
 }

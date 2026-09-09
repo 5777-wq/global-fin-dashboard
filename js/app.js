@@ -73,7 +73,7 @@
     'heatReset', 'heatZoom', 'heatHint',
     'newsList', 'newsSub', 'chainList', 'chainSub',
     'boardStrip', 'boardVia', 'boardDrawer',
-    'moodSub', 'moodScore', 'moodBand', 'moodFill', 'breadthGrid', 'distWrap', 'distSub', 'moodSpark', 'heroStrip', 'moodCrypto',
+    'moodSub', 'moodScore', 'moodBand', 'moodFill', 'breadthGrid', 'distWrap', 'distSub', 'moodSpark', 'heroStrip', 'moodCrypto', 'moodUS',
     'searchInput', 'searchResults', 'settingsBtn', 'settingsModal', 'settingsClose',
     'segUpdown', 'segRefresh', 'swDegraded', 'sourceStatus', 'updatedLine',
     'detailName', 'detailCode', 'detailPrice', 'detailChg', 'detailStar', 'detailStats',
@@ -794,6 +794,73 @@
     window.Store.set('breadthHist', state.breadthHist);
     renderMood();
     ensureCryptoRows().then(renderMoodCrypto);   // 加密宽度：与 A 股并列，不再"只有 A 股"
+    ensureUSRows().then(renderMoodUS);           // 美股宽度：全球三大市场之一，不能缺席
+  }
+
+  /* ---- 美股宽度（东财美股全市场 m:105,106,107 ≈ 1.38 万只，全量抓避免排序偏差）----
+     与加密宽度同构的独立卡片；无涨跌停概念，不展示 limit 口径。缓存 5 分钟。 */
+  async function ensureUSRows() {
+    if (state.heatItems.us && state.heatItems.us.length) return state.heatItems.us;
+    const c = Cache.raw('heat:us');
+    if (c && Date.now() - c.at < 300000) return c.val;
+    const rows = await window.EastmoneySource.getFullMarket({
+      fs: 'm:105,m:106,m:107', maxCount: 13800, concurrency: 16,
+    });
+    if (rows.length) {
+      state.heatItems.us = rows;
+      Cache.set('heat:us', rows);
+    }
+    return rows;
+  }
+
+  function renderMoodUS(rows) {
+    const box = el.moodUS;
+    if (!box) return;
+    const valid = (rows || []).filter(r => r.changePct !== null && r.changePct !== undefined && !isNaN(r.changePct));
+    if (!valid.length) {
+      box.innerHTML = '';
+      return;
+    }
+    const up = valid.filter(r => r.changePct > 0).length;
+    const down = valid.filter(r => r.changePct < 0).length;
+    const decisive = up + down;
+    const score = decisive ? (up / decisive) * 100 : null;
+    const avg = valid.reduce((s2, r) => s2 + r.changePct, 0) / valid.length;
+    const band = window.Breadth.scoreBand(score);
+    const cls = pctClass(avg);
+    const maxAbs = Math.max(...valid.map(r => Math.abs(r.changePct)), 0.0001);
+    const movers = valid.slice().sort((a, b) => b.changePct - a.changePct);
+    const heat = (v) => Math.min(1, Math.abs(v) / maxAbs).toFixed(3);
+    box.innerHTML = `<div class="section-head" style="margin-top:32px">
+        <span class="sec-no">03</span>
+        <h2 class="section-title">美股宽度</h2>
+        <span class="sec-line"></span>
+        <span class="section-sub">${valid.length} 只 · NYSE/NASDAQ/AMEX 全市场 · 东财 · 缓存 5 分钟</span>
+      </div>
+      <div class="mood-top">
+        <div class="thermo-card">
+          <div class="thermo-label">美股情绪指数</div>
+          <div class="thermo-score num">${score === null ? '--' : Math.round(score)}</div>
+          <div class="thermo-band ${band.cls}">${band.label} · 上涨占比 ${score === null ? '--' : score.toFixed(1) + '%'}</div>
+          <div class="thermo-track" aria-hidden="true"><span class="thermo-fill" style="transform:scaleX(${(score / 100).toFixed(4)})"></span></div>
+          <div class="thermo-scale" aria-hidden="true"><span>0 恐慌</span><span>50</span><span>100 亢奋</span></div>
+          <div class="thermo-note">上涨家数 ÷ (上涨 + 下跌) × 100，剔除平盘；无涨跌停概念</div>
+        </div>
+        <div class="breadth-grid">
+          <div class="bd-cell"><div class="bd-label">上涨 / 下跌</div>
+            <div class="bd-value num"><span class="up">${up}</span> / <span class="down">${down}</span></div>
+            <div class="bd-sub num">平盘 ${valid.length - up - down}</div></div>
+          <div class="bd-cell"><div class="bd-label">涨幅王</div>
+            <div class="bd-value num ${pctClass(movers[0].changePct)}">${escapeHTML(movers[0].name)}</div>
+            <div class="bd-sub num">${fmtPct(movers[0].changePct)} · 热度 ${heat(movers[0].changePct)}</div></div>
+          <div class="bd-cell"><div class="bd-label">跌幅王</div>
+            <div class="bd-value num ${pctClass(movers[movers.length - 1].changePct)}">${escapeHTML(movers[movers.length - 1].name)}</div>
+            <div class="bd-sub num">${fmtPct(movers[movers.length - 1].changePct)} · 热度 ${heat(movers[movers.length - 1].changePct)}</div></div>
+          <div class="bd-cell"><div class="bd-label">平均涨跌</div>
+            <div class="bd-value num ${cls}">${fmtPct(avg)}</div>
+            <div class="bd-sub num">全市场口径</div></div>
+        </div>
+      </div>`;
   }
 
   function renderMood() {
@@ -1261,7 +1328,7 @@
     }
     el.voicesList.innerHTML = list.slice(0, 60).map(it => {
       const people = window.NewsSource.matchVoices(it);
-      const badges = people.map(p => `<span class="vb">${window.Flags ? window.Flags.flag(p.flag) : ''}${escapeHTML(p.name)}</span>`).join('');
+      const badges = people.map(p => `<span class="vb"><span class="vb-en">${escapeHTML(p.en)}</span>${escapeHTML(p.name)}<span class="vb-title">${escapeHTML(p.title)}</span></span>`).join('');
       const safeUrl = /^https?:\/\//i.test(it.url || '') ? it.url : '';
       const tag = safeUrl ? 'a' : 'div';
       const href = safeUrl ? ` href="${escapeHTML(safeUrl)}" target="_blank" rel="noopener"` : '';
@@ -1297,12 +1364,16 @@
       const q = state.globeQuotes.get(x.secid);
       if (!q) return '';
       const cls = pctClass(q.changePct);
-      return `<span class="gcell"><span class="gflag">${window.Flags.flag(x.flag)}</span>` +
-        `<span class="gname">${escapeHTML(x.name)}</span>` +
-        `<span class="gval num">${fmt(q.price, U.priceDigits(q.price))}</span>` +
-        `<span class="gpct num ${cls}">${fmtPct(q.changePct)}</span></span>`;
+      const digits = U.priceDigits(q.price);
+      // 与 hero-cell 同构：国旗+名称 / 大数字 / 涨跌行——六大市场与中美平级，不再挤成一行小字
+      // 纯展示卡：全球指数的详情页 K 线免费源不稳，不提供点击进详情
+      return `<div class="gcard">
+        <div class="hero-label"><span>${window.Flags.flag(x.flag)}${escapeHTML(x.name)}</span></div>
+        <div class="hero-value">${fmt(q.price, digits)}</div>
+        <div class="hero-chg ${cls}"><span>${fmtChg(q.change, digits)}  ${fmtPct(q.changePct)}</span></div>
+      </div>`;
     }).join('');
-    el.globeBar.innerHTML = cells || '<span class="gcell num">全球指数暂不可用</span>';
+    el.globeBar.innerHTML = cells || '<span class="empty">全球指数暂不可用</span>';
   }
 
   /* ==================== 世界经济仪表盘（世界银行，免密钥） ==================== */
@@ -2341,26 +2412,26 @@
       sp.addEventListener('pointerdown', revealSplash);
       sp.addEventListener('keydown', revealSplash);
     }
-    // 开屏进度条开始爬行（rAF）；真实里程碑：行情 45% → 热力 78% → 渲染 100%
+    // 开屏进度条开始爬行（rAF）；里程碑：行情 92% → 渲染 100%
     splashProgress.start();
     // 首屏骨架：数据到达前先给结构（opacity 呼吸），不白屏
     el.cardWall.innerHTML = '<div class="section"><div class="card-grid">' +
       '<div class="sk sk-card"></div>'.repeat(8) + '</div></div>';
 
-    // 首屏：行情与全市场热力图无依赖，并行抓取（原串行瀑布让热力图晚到 1-3s）
-    await Promise.all([
-      fetchAllQuotes().then(() => splashProgress.step(45, '行情数据到位 · 热力图抓取中')),
-      loadHeatCN().then(() => splashProgress.step(78, '全市场数据到位')),
-    ]);
+    // 开屏只等行情（47 标的，数百毫秒级）；全市场热力图（56 页并发）改为后台加载——
+    // 它曾把首屏阻塞 1-3 秒，是"打开变慢"的主因。到位后补画热力图并计算市场宽度。
+    const heatBg = loadHeatCN().then(() => {
+      splashProgress.step(80, '热力图数据后台就绪');
+      drawHeat();
+      return loadMood();   // 市场宽度/情绪历史/加密宽度一并在后台算好
+    }).catch(() => {});
+    await fetchAllQuotes().then(() => splashProgress.step(92, '行情数据到位'));
     await splashReady();   // 进度条走满 + 最短展示，随后淡出开屏
     renderHero();
     renderCardWall();
     renderStatus();
     drawHeat();
-    // 全市场数据已在手，顺带算好市场宽度（切到"情绪"tab 不会先看到空白）
-    state.breadth = window.Breadth.compute(state.heatItems.cn);
-    state.breadthAt = Date.now();
-    renderMood();
+    void heatBg;
 
     // 新闻/研报不再启动即抓：首次进入对应 tab 时懒加载（setTab 分支），避免白跑请求
     // 首屏就把产业链渲染好，切到该 tab 时不会先看到空白
