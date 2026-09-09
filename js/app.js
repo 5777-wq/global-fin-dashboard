@@ -57,6 +57,8 @@
     searchItems: [],
     searchKw: null,           // 与 searchItems 对应的关键词（Enter 防旧词选错）
     newsFilterKey: null,      // 上次新闻渲染的过滤键（增量插入判断用）
+    boardItems: [], boardLoadedAt: 0, boardVia: null,
+    boardOpenBk: null, boardStocks: [], boardGen: 0,
     lastUpdate: null,
     timers: {},
     stopped: false,
@@ -68,6 +70,7 @@
     'heatCanvas', 'heatTip', 'heatWrap', 'heatSection', 'heatSub', 'heatSizeToggle',
     'heatReset', 'heatZoom', 'heatHint',
     'newsList', 'newsSub', 'chainList', 'chainSub', 'reportList', 'reportSub',
+    'boardStrip', 'boardVia', 'boardDrawer',
     'moodSub', 'moodScore', 'moodBand', 'moodFill', 'breadthGrid', 'distWrap', 'distSub', 'moodSpark', 'heroStrip', 'moodCrypto',
     'searchInput', 'searchResults', 'settingsBtn', 'settingsModal', 'settingsClose',
     'segUpdown', 'segRefresh', 'swDegraded', 'sourceStatus', 'updatedLine',
@@ -1276,6 +1279,109 @@
     return Array.from(new Set(out));
   }
 
+  /* ==================== 今日热门概念（东财板块榜 → 人工产业链） ==================== */
+  // 两层拼接：榜单实时（东财概念板块涨跌幅排行，免密钥），图谱静态（INDUSTRY_CHAINS 人工维护）。
+  // chip 点击：能对上人工链条 → 展开该链并滚动定位；对不上 → 拉成分股抽屉兜底，股可进详情。
+  const CHAIN_HINTS = {
+    nev: ['新能源车', '汽车整车', '汽车零部件', '充电桩', '动力电池', '锂电池', '锂矿', '盐湖提锂', '固态电池', '无人驾驶', '智能驾驶', '汽车'],
+    semicon: ['半导体', '芯片', '光刻', '集成电路', '晶圆', '存储器', '封测', '电子化学品'],
+    ai: ['算力', '人工智能', 'AIGC', 'ChatGPT', 'AI', '光模块', 'CPO', '数据中心', 'IDC', '液冷', '英伟达'],
+    pv: ['光伏', '太阳能', '钙钛矿', '硅料', '硅片', '异质结', 'TOPCon'],
+    consumer: ['消费电子', '苹果概念', '智能手机', '面板', 'OLED', '折叠屏', '无线耳机', 'VR', 'AR', 'MR'],
+    pharma: ['创新药', 'CXO', 'CRO', '医药', '疫苗', '医疗器械', '中药', '减肥药', 'GLP'],
+    defense: ['军工', '航天', '卫星', '大飞机', '船舶', '兵器', '无人机', '核聚变'],
+    robot: ['机器人', '减速器', '人形', '伺服', '执行器', '机床'],
+    storage: ['储能', '虚拟电厂', '特高压', '电网', '电力', '核电'],
+    xinchuang: ['信创', '国产软件', '操作系统', '数据库', '网络安全', '华为', '鸿蒙', 'ERP', '国资云', '数据要素'],
+  };
+  function matchChain(name) {
+    const s = String(name || '');
+    if (!s) return null;
+    for (const c of window.INDUSTRY_CHAINS) {
+      const kws = CHAIN_HINTS[c.id] || [];
+      if (kws.some(k => s.includes(k) || k.includes(s))) return c.id;
+    }
+    return null;
+  }
+
+  async function loadBoards() {
+    const gen = ++state.boardGen;
+    const list = await window.EastmoneySource.getBoardRank('concept', 24);
+    if (gen !== state.boardGen) return;
+    state.boardItems = list;
+    state.boardLoadedAt = Date.now();
+    state.boardVia = list.length ? 'em' : null;
+    renderBoards();
+  }
+
+  function renderBoards() {
+    if (!el.boardStrip) return;
+    if (!state.boardItems.length) {
+      // 降级：榜单拿不到时只藏这一小块，产业链表照常工作，绝不弹错误
+      el.boardStrip.innerHTML = '<span class="board-empty">概念榜单暂不可用（行情源未响应）</span>';
+      el.boardVia.textContent = '';
+      return;
+    }
+    el.boardVia.textContent = '东财概念榜 · ' + fmtTime(state.boardLoadedAt);
+    el.boardStrip.innerHTML = state.boardItems.map((b, i) => {
+      const chainId = matchChain(b.name);
+      const chainName = chainId ? (window.INDUSTRY_CHAINS.find(c => c.id === chainId) || {}).name : null;
+      return `<button class="bchip" data-bk="${b.bk}" data-i="${i}"${chainName ? ` title="属产业链：${chainName}"` : ''}>
+        <span class="bc-name">${escapeHTML(b.name)}</span>
+        <span class="bc-pct num ${pctClass(b.changePct)}">${fmtPct(b.changePct)}</span>
+        <span class="bc-lead">${b.leadName ? escapeHTML(b.leadName) : ''}</span>
+      </button>`;
+    }).join('');
+    if (state.boardOpenBk) {
+      const cur = el.boardStrip.querySelector(`[data-bk="${state.boardOpenBk}"]`);
+      if (cur) cur.classList.add('open');
+    }
+  }
+
+  function closeBoardDrawer() {
+    state.boardOpenBk = null;
+    state.boardStocks = [];
+    if (el.boardDrawer) { el.boardDrawer.hidden = true; el.boardDrawer.innerHTML = ''; }
+    el.boardStrip.querySelectorAll('.bchip.open').forEach(x => x.classList.remove('open'));
+  }
+
+  async function toggleBoard(bk, i) {
+    if (state.boardOpenBk === bk) { closeBoardDrawer(); return; }
+    state.boardOpenBk = bk;
+    const b = state.boardItems[i];
+    const chainId = b ? matchChain(b.name) : null;
+    renderBoards();
+    if (chainId) {
+      // 命中人工产业链：展开该链，滚动定位并短暂闪烁
+      closeBoardDrawer();
+      state.openChains.add(chainId);
+      renderChains();
+      const row = el.chainList.querySelector(`[data-chain="${chainId}"]`);
+      if (row) {
+        try { row.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'center' }); } catch { /* 旧浏览器 */ }
+        row.classList.add('flash');
+        setTimeout(() => row.classList.remove('flash'), 1600);
+      }
+      return;
+    }
+    // 未命中人工链：成分股抽屉兜底（榜单层是全网 500+ 概念，图谱层只人工维护了 10 条）
+    el.boardDrawer.hidden = false;
+    el.boardDrawer.innerHTML = '<div class="sk sk-row"></div>';
+    const stocks = await window.EastmoneySource.getBoardStocks(bk, 12);
+    if (state.boardOpenBk !== bk) return;   // 等待期间用户点了别的板块
+    if (!stocks.length) {
+      el.boardDrawer.innerHTML = '<span class="board-empty">成分股列表暂不可用</span>';
+      return;
+    }
+    state.boardStocks = stocks;
+    el.boardDrawer.innerHTML = `<div class="bd-head">${b ? escapeHTML(b.name) + ' · ' : ''}领涨成分股<span class="bd-hint">点击进详情</span></div>` +
+      stocks.map(s => `<button class="bs-row" data-symbol="EM:${s.secid}">
+          <span class="bs-name">${escapeHTML(s.name)}</span>
+          <span class="bs-code num">${escapeHTML(s.code)}</span>
+          <span class="bs-pct num ${pctClass(s.changePct)}">${fmtPct(s.changePct)}</span>
+        </button>`).join('');
+  }
+
   async function loadChainQuotes() {
     const syms = chainSymbols();
     let list = await window.TencentSource.getQuotes(syms);
@@ -1565,6 +1671,9 @@
     }
     if (view === 'chain') {
       renderChains();
+      // 概念榜单懒加载：无数据立即拉，过期(>55s)重拉，否则直接渲染缓存
+      if (!state.boardItems.length || Date.now() - state.boardLoadedAt > 55000) loadBoards();
+      else renderBoards();
       // 定时器只在 chain 视图内轮询，所以每次进入都主动补一轮，避免展示过期行情
       loadChainQuotes().then(() => patchChains());
     }
@@ -1726,6 +1835,11 @@
       // 增量更新，不重建 DOM：否则每 10s 会吞掉已展开的环节、hover 与键盘焦点
       patchChains();
     }, 10000);
+    // 概念榜单 60s 一轮（同样只在 chain 视图内）；chip 量少，直接重渲染
+    schedule('boards', async () => {
+      if (state.view !== 'chain') return;
+      await loadBoards();
+    }, 60000);
   }
 
   document.addEventListener('visibilitychange', () => {
@@ -1842,6 +1956,14 @@
       const card = e.target.closest('.qrow, .hero-cell, .quote-card');
       if (card) {
         const t = targetFromSymbol(card.getAttribute('data-symbol'));
+        if (t) openDetail(t);
+        return;
+      }
+      const bchip = e.target.closest('[data-bk]');
+      if (bchip) { toggleBoard(bchip.getAttribute('data-bk'), +bchip.dataset.i); return; }
+      const bsRow = e.target.closest('.bs-row');
+      if (bsRow) {
+        const t = targetFromHashSymbol(bsRow.getAttribute('data-symbol'));
         if (t) openDetail(t);
         return;
       }

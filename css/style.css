@@ -528,6 +528,8 @@ a.report-item:hover .report-title { text-decoration: underline; text-underline-o
   .qr-chg { grid-column: 2; grid-row: 2; }
   .qr-pct { grid-column: 3; grid-row: 1; font-size: 13px; }
   .qr-amt { display: none; }
+  .bc-lead { display: none; }
+  .bchip { padding: 6px 9px; }
   .qrow .star { position: absolute; right: 4px; bottom: 8px; }
   .news-item { padding-left: 0; }
   .news-item::before { display: none; }
@@ -582,6 +584,47 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
 @keyframes spRise { from { opacity: 0; transform: translateY(10px); } }
 
 /* ============================================================ 板块热度表（产业链入口） ============================================================ */
+/* 今日热门概念：实时榜单（东财）→ 静态图谱（人工链条）的两层入口 */
+.board-wrap { margin-top: 26px; }
+.board-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  margin-bottom: 10px; }
+.board-title { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-secondary); }
+.board-via { font-size: 10px; color: var(--text-faint); }
+.board-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.bchip { display: inline-flex; align-items: baseline; gap: 7px;
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 3px;
+  background: transparent; color: var(--text-secondary);
+  cursor: pointer; transition: background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out); }
+.bchip:hover { background: var(--bg-hover); border-color: rgba(255,255,255,0.16); }
+.bchip.open { border-color: var(--accent-signature); background: var(--bg-hover); }
+.bchip:focus-visible { outline: none; border-color: rgba(255,255,255,0.3); }
+.bc-name { font-size: 12px; font-weight: 500; color: var(--text); }
+.bc-pct { font-size: 12px; font-weight: 600; }
+.bc-lead { font-size: 10px; color: var(--text-faint); max-width: 72px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-empty { font-size: 11px; color: var(--text-faint); }
+.board-drawer { margin-top: 12px; border: 1px solid var(--border); border-radius: 3px;
+  padding: 4px 12px; }
+.bd-head { display: flex; align-items: baseline; gap: 10px; padding: 10px 0 6px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border); }
+.bd-hint { margin-left: auto; font-weight: 400; font-size: 10px; color: var(--text-faint); }
+.bs-row { display: flex; align-items: center; gap: 14px; width: 100%;
+  padding: 8px 0; border: 0; border-bottom: 1px solid var(--border);
+  background: transparent; color: var(--text-secondary); text-align: left;
+  cursor: pointer; transition: background var(--dur-fast) var(--ease-out); }
+.bs-row:last-child { border-bottom: 0; }
+.bs-row:hover { background: var(--bg-hover); }
+.bs-row:focus-visible { outline: none; background: var(--bg-hover); }
+.bs-name { font-size: 12px; font-weight: 500; color: var(--text); }
+.bs-code { font-size: 10px; color: var(--text-faint); }
+.bs-pct { margin-left: auto; font-size: 12px; font-weight: 600; }
+/* 概念 chip 命中人工链后，热度表对应行的定位闪烁（纯 opacity，不碰宽高） */
+.crow.flash { animation: crowFlash 0.5s var(--ease-out) 3; }
+@keyframes crowFlash { 50% { background: rgba(255,122,24,0.12); } }
+
 .chain-table { border-top: 1px solid var(--border); }
 .crow { display: grid;
   grid-template-columns: 44px 130px 96px 90px 1fr 1fr 120px 20px;

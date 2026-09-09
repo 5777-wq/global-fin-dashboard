@@ -18,6 +18,7 @@ const groups = [
   { file: 'breadth.test.mjs', net: true },  // 结构断言为主，但取数需联网
   { file: 'detail.test.mjs', net: true },
   { file: 'degrade.test.mjs', net: true },
+  { file: 'boards.test.mjs', net: true },   // 今日热门概念：榜单/成分股接口 + 链条匹配
   { file: 'live.test.mjs', net: true },
 ];
 

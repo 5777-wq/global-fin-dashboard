@@ -169,6 +169,11 @@ await test('实网：全市场宽度与东财自身涨跌幅榜口径自洽', as
     amount: typeof x.f6 === 'number' ? x.f6 : null,
     marketCap: x.f20,
   }));
+  // 清算时段守卫：深夜东财把 f3 全回 "-"，任何口径核对都无从谈起（盘中该值数千）
+  if (mapped.filter(x => x.changePct !== null).length < 100) {
+    console.log('   （清算时段：全市场涨跌幅均为 "-"，跳过口径核对）');
+    return;
+  }
   const r = B.compute(mapped);
 
   assert.ok(r.total > 4000, '有效家数仅 ' + r.total);
@@ -199,6 +204,10 @@ await test('实网：情绪指数与大盘指数涨跌方向一致（普涨/普�
     .then(r => r.json()).then(x => (x.data && x.data.diff) || []).catch(() => [])));
   res.forEach(r => rows.push(...r.map(x => ({ code: String(x.f12), name: String(x.f14), changePct: x.f3 }))));
   const r = B.compute(rows);
+  if (r.total < 100) {
+    console.log('   （清算时段：抽样涨跌幅均为 "-"，跳过方向核对）');
+    return;
+  }
 
   // 上证指数当日涨跌
   const txt = await (await fetch('https://qt.gtimg.cn/q=sh000001', { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15000) })).arrayBuffer();

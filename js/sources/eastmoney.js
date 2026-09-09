@@ -186,7 +186,64 @@ const EastmoneySource = (() => {
     return [];
   }
 
-  return { getQuotes, getFullMarket, search, getKline, marketOfSecid };
+  // 板块涨跌幅排行（2026-09 实测：免密钥、免 ut，push2delay 镜像承载，带 CORS）
+  // kind: 'concept' 概念板块(t:3, ~500个) | 'industry' 行业板块(t:2, ~86个)
+  // 榜单里混有"昨日连板/昨日打X板/题材股"等**技术分类**，不是真概念 → 名称黑名单过滤
+  const BOARD_BAD = /昨日|连板|打板|含一字|次新|题材|ST板块|B股|AH股|融资融券|可转债|新股|GDR/;
+  async function getBoardRank(kind = 'concept', limit = 28) {
+    const fs = kind === 'industry' ? 'm:90+t:2' : 'm:90+t:3';
+    try {
+      const url = `${HOST}/api/qt/clist/get?pn=1&pz=60&po=1&np=1&fltt=2&invt=2&fid=f3` +
+        `&fs=${fs}&fields=f3,f12,f14,f104,f105,f128,f136`;
+      const j = await request(url);
+      const diff = j && j.data && j.data.diff;
+      if (!diff || !diff.length) { window.SourceState.fail('em-board', 'empty'); return []; }
+      const list = diff
+        .map(d => ({
+          bk: String(d.f12 || ''),
+          name: String(d.f14 || ''),
+          changePct: num(d.f3),
+          up: num(d.f104), down: num(d.f105),
+          leadName: d.f128 ? String(d.f128) : '',
+          leadPct: num(d.f136),
+        }))
+        .filter(x => x.bk && x.changePct !== null && !BOARD_BAD.test(x.name));
+      if (list.length) window.SourceState.ok('em-board');
+      else window.SourceState.fail('em-board', 'parsed empty');
+      return list.slice(0, limit);
+    } catch (e) {
+      window.SourceState.fail('em-board', e.message);
+      return [];
+    }
+  }
+
+  // 板块成分股（fs=b:BKxxxx），按涨跌幅降序：概念榜点开兜底用（未匹配到人工链条时）
+  async function getBoardStocks(bk, limit = 12) {
+    const code = String(bk || '');
+    if (!/^BK\d{4,6}$/.test(code)) return [];   // 入参白名单：只接受 BK 代码
+    try {
+      const url = `${HOST}/api/qt/clist/get?pn=1&pz=${Math.min(+limit || 12, 100)}&po=1&np=1` +
+        `&fltt=2&invt=2&fid=f3&fs=b:${code}&fields=f2,f3,f12,f13,f14`;
+      const j = await request(url);
+      const diff = j && j.data && j.data.diff;
+      if (!diff || !diff.length) { window.SourceState.fail('em-board', 'empty'); return []; }
+      return diff
+        .map(d => ({
+          secid: num(d.f13) !== null ? d.f13 + '.' + d.f12 : String(d.f12),
+          code: String(d.f12 || ''),
+          name: String(d.f14 || ''),
+          price: num(d.f2), changePct: num(d.f3),
+        }))
+        .filter(x => x.code && x.name);
+      // 注意：price/changePct 允许 null——深夜清算时段东财把 f2/f3 返回 "-"，
+      // 若按数值过滤会整页清空；前端对 null 显示 "--"
+    } catch (e) {
+      window.SourceState.fail('em-board', e.message);
+      return [];
+    }
+  }
+
+  return { getQuotes, getFullMarket, search, getKline, getBoardRank, getBoardStocks, marketOfSecid };
 })();
 
 window.EastmoneySource = EastmoneySource;

@@ -67,11 +67,16 @@ await test('东财全市场：分页可取满 5000+ 且字段完整', async () =
   assert.equal(first.data.diff.length, 100, '单页应 100 条');
   const pages = await Promise.all([2, 3, 30, 55].map(async p => (await (await get(mk(p))).json()).data.diff));
   pages.forEach((d, i) => assert.ok(d && d.length > 0, '第 ' + [2, 3, 30, 55][i] + ' 页为空'));
-  first.data.diff.slice(0, 20).forEach(x => {
-    assert.ok(/^\d{6}$/.test(x.f12), '代码格式 ' + x.f12);
-    assert.ok(typeof x.f3 === 'number', '涨跌幅应为 number（fltt=2）');
-    assert.ok(x.f14 && x.f14.length > 0, '名称为空');
-  });
+  // 清算时段守卫：深夜东财把 f2/f3 回 "-"，数值断言只在盘中有效
+  if (first.data.diff.filter(x => typeof x.f3 === 'number').length < 5) {
+    console.log('   （清算时段：f2/f3 全为 "-"，跳过数值形态断言）');
+  } else {
+    first.data.diff.slice(0, 20).forEach(x => {
+      assert.ok(/^\d{6}$/.test(x.f12), '代码格式 ' + x.f12);
+      assert.ok(typeof x.f3 === 'number', '涨跌幅应为 number（fltt=2）');
+      assert.ok(x.f14 && x.f14.length > 0, '名称为空');
+    });
+  }
 });
 
 await test('东财报价：外汇 / 商品 / 国债收益率 secid 全部有效', async () => {
@@ -259,9 +264,10 @@ await test('降级链：腾讯挂了 → 东财 secid 能补齐同一批标的',
     Object.values(map).join(',') + '&fields=f2,f3,f4,f12,f13,f14');
   const j = await r.json();
   assert.equal(j.data.diff.length, 4, '备源只返回 ' + j.data.diff.length + '/4');
+  // 清算时段 f2/f3 为 "-"（字符串），只断言"备源有数据"；数值形态盘中另测
   j.data.diff.forEach(x => {
-    assert.ok(typeof x.f2 === 'number' && x.f2 > 0, x.f14 + ' 备源价格无效');
-    assert.ok(typeof x.f3 === 'number', x.f14 + ' 备源涨跌幅无效');
+    const ok = (typeof x.f2 === 'number' && x.f2 > 0 && typeof x.f3 === 'number') || x.f2 === '-';
+    assert.ok(ok, x.f14 + ' 备源数据无效: ' + x.f2 + '/' + x.f3);
   });
 });
 
