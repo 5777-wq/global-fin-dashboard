@@ -572,10 +572,10 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
   color: var(--text-faint); animation: spRise 0.4s var(--ease-out) 0.15s both; }
 .sp-load { margin-top: 34px; display: flex; flex-direction: column; align-items: center; gap: 12px;
   animation: spRise 0.4s var(--ease-out) 0.28s both; }
-.sp-track { width: 160px; height: 1px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.sp-track { width: 160px; height: 2px; background: rgba(255,255,255,0.1); overflow: hidden; }
 .sp-fill { display: block; height: 100%; background: var(--accent-signature);
-  transform: scaleX(0); transform-origin: left center;
-  transition: transform 0.8s var(--ease-out); }
+  transform: scaleX(0); transform-origin: left center; }
+  /* 无 CSS transition：进度由 app.js 的 rAF 爬行器逐帧驱动，CSS 过渡叠加会产生拖影 */
 .sp-status { font-size: 10px; color: var(--text-faint); min-height: 15px;
   font-family: var(--font-mono); letter-spacing: 0.08em; }
 .sp-skip { position: absolute; bottom: 36px; font-size: 10px; letter-spacing: 0.14em;

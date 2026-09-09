@@ -2272,9 +2272,44 @@
   /* ---- 开屏（splash）：数据就绪后 reveal，最短展示 600ms，2.6s 硬上限在 HTML 内联 ---- */
   const SPLASH_MIN = 600;
   const splashT0 = Date.now();
+  /* 进度条：rAF 爬行器 + 真实里程碑校准。
+     爬行器保证慢网络下也有前进感（自发向 88% 爬），里程碑（行情到位/热力到位/渲染）
+     负责真实跳变，绝不倒退；状态行带百分比。动画走 rAF（禁令：不许 setInterval）。 */
+  const splashProgress = (() => {
+    let cur = 0, target = 8, txt = '正在连接行情源…', lastCrawl = 0, started = false;
+    function paint() {
+      const fill = document.getElementById('spFill');
+      const status = document.getElementById('spStatus');
+      if (!fill || !fill.isConnected) return false;   // 开屏已被移除（点击跳过/硬上限）→ 停表
+      if (reduceMotion()) cur = target;
+      else cur += (target - cur) * 0.10;
+      if (target >= 100 && cur > 99.2) cur = 100;
+      fill.style.transform = 'scaleX(' + (cur / 100).toFixed(4) + ')';
+      if (status) status.textContent = txt + ' ' + Math.min(100, Math.round(cur)) + '%';
+      return cur < 100;
+    }
+    function tick(now) {
+      if (now - lastCrawl > 120 && target < 88) { target = Math.min(88, target + 0.8); lastCrawl = now; }
+      if (paint()) requestAnimationFrame(tick);
+    }
+    return {
+      start() {
+        if (started) return;
+        started = true;
+        requestAnimationFrame(tick);
+      },
+      step(p, t) {
+        target = Math.max(target, Math.min(p, 100));
+        if (t) txt = t;
+      },
+      finish(t) {
+        if (t) txt = t;
+        target = 100;
+      },
+    };
+  })();
   function splashStatus(txt) {
-    const n = document.getElementById('spStatus');
-    if (n) n.textContent = txt;
+    splashProgress.step(null, txt);
   }
   function revealSplash() {
     const de = document.documentElement;
@@ -2285,9 +2320,7 @@
     setTimeout(() => sp.remove(), 300);
   }
   function splashReady() {
-    const fill = document.getElementById('spFill');
-    if (fill) fill.style.transform = 'scaleX(1)';
-    splashStatus('渲染视图…');
+    splashProgress.finish('渲染视图…');
     const wait = Math.max(0, SPLASH_MIN - (Date.now() - splashT0));
     return new Promise(r => setTimeout(() => { revealSplash(); setTimeout(r, 120); }, wait));
   }
@@ -2308,12 +2341,17 @@
       sp.addEventListener('pointerdown', revealSplash);
       sp.addEventListener('keydown', revealSplash);
     }
+    // 开屏进度条开始爬行（rAF）；真实里程碑：行情 45% → 热力 78% → 渲染 100%
+    splashProgress.start();
     // 首屏骨架：数据到达前先给结构（opacity 呼吸），不白屏
     el.cardWall.innerHTML = '<div class="section"><div class="card-grid">' +
       '<div class="sk sk-card"></div>'.repeat(8) + '</div></div>';
 
     // 首屏：行情与全市场热力图无依赖，并行抓取（原串行瀑布让热力图晚到 1-3s）
-    await Promise.all([fetchAllQuotes(), loadHeatCN()]);
+    await Promise.all([
+      fetchAllQuotes().then(() => splashProgress.step(45, '行情数据到位 · 热力图抓取中')),
+      loadHeatCN().then(() => splashProgress.step(78, '全市场数据到位')),
+    ]);
     await splashReady();   // 进度条走满 + 最短展示，随后淡出开屏
     renderHero();
     renderCardWall();
