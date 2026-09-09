@@ -68,7 +68,55 @@ const LhbSource = (() => {
     return { rows: [], tradeDate: null, via: null, at: Date.now() };
   }
 
-  return { getLhb, fetchDate, secidOf };
+  /* 当日全部席位明细（买+卖两页）。实测单日约 330 行/侧，pageSize 500 一页拿完。
+     返回 { tradeDate, buyRows, sellRows }，喂给 Actors.buildSeatActors 出席位目录。 */
+  async function getDayDetails(date) {
+    const base = (reportName, sortCol) => {
+      const qs = new URLSearchParams({
+        reportName, columns: 'ALL',
+        filter: `(TRADE_DATE='${date}')`,
+        pageNumber: '1', pageSize: '500',
+        sortTypes: '-1', sortColumns: sortCol,
+        source: 'WEB', client: 'WEB',
+      });
+      return window.U.request(API + '?' + qs.toString(), { timeout: 12000 });
+    };
+    const [buy, sell] = await Promise.all([
+      base('RPT_BILLBOARD_DAILYDETAILSBUY', 'BUY'),
+      base('RPT_BILLBOARD_DAILYDETAILSSELL', 'SELL'),
+    ]);
+    return {
+      tradeDate: date,
+      buyRows: (buy && buy.result && buy.result.data) || [],
+      sellRows: (sell && sell.result && sell.result.data) || [],
+    };
+  }
+
+  /* 单席位历史活动（跨日）：90 天窗口按日期倒序。win.history.test 已实测可用。
+     返回原始明细行（买卖各查一次，合并交给 Actors.buildSeatHistory）。 */
+  async function getSeatRawHistory(seatCode, sinceDays) {
+    const since = new Date(Date.now() - (sinceDays || 90) * 86400000).toISOString().slice(0, 10);
+    const one = (reportName, sortCol) => {
+      const qs = new URLSearchParams({
+        reportName, columns: 'ALL',
+        filter: `(OPERATEDEPT_CODE="${seatCode}")(TRADE_DATE>='${since}')`,
+        pageNumber: '1', pageSize: '200',
+        sortTypes: '-1', sortColumns: sortCol,
+        source: 'WEB', client: 'WEB',
+      });
+      return window.U.request(API + '?' + qs.toString(), { timeout: 12000 });
+    };
+    const [buy, sell] = await Promise.all([
+      one('RPT_BILLBOARD_DAILYDETAILSBUY', 'TRADE_DATE'),
+      one('RPT_BILLBOARD_DAILYDETAILSSELL', 'TRADE_DATE'),
+    ]);
+    return {
+      buyRows: (buy && buy.result && buy.result.data) || [],
+      sellRows: (sell && sell.result && sell.result.data) || [],
+    };
+  }
+
+  return { getLhb, fetchDate, secidOf, getDayDetails, getSeatRawHistory };
 })();
 
 window.LhbSource = LhbSource;

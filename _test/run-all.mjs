@@ -17,6 +17,7 @@ const groups = [
   { file: 'evolve.test.mjs', net: false },  // 市场时段/情绪历史/请求去重（纯函数）
   { file: 'technical.test.mjs', net: false }, // 技术面指标手算核对（纯函数）
   { file: 'events.test.mjs', net: false },  // 事件数据模型/聚类/时间语义/Bus（纯函数）
+  { file: 'actors.test.mjs', net: false },  // Actor/Activity 模型（席位聚合/合并/口径）
   { file: 'breadth.test.mjs', net: true },  // 结构断言为主，但取数需联网
   { file: 'detail.test.mjs', net: true },
   { file: 'degrade.test.mjs', net: true },

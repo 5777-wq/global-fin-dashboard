@@ -7,14 +7,14 @@
 
 const EventsSource = (() => {
   const CACHE_KEY = 'events:global';
-  const STALE_MS = 3 * 3600 * 1000;   // 采集 30 分钟/轮，3 小时没更新就算滞后
+  const STALE_MS = 30 * 60 * 1000;   // 采集 5 分钟/轮，30 分钟没更新就该亮"滞后"
 
   async function getEvents() {
     let data = null;
     let via = null;
     try {
-      // 5 分钟桶破 CDN 缓存：同一分钟内重复进入不重复下载
-      const bust = Math.floor(Date.now() / 300000);
+      // 60 秒桶破 CDN 缓存：采集任务 5 分钟/轮，前端 1 分钟刷新
+      const bust = Math.floor(Date.now() / 60000);
       const res = await window.U.request('data/events/global-events.json?v=' + bust, { timeout: 8000 });
       // 占位文件（events:[] 且无 generatedAt）不算有效数据，继续走缓存/无数据
       if (res && Array.isArray(res.events) && (res.events.length || res.generatedAt)) { data = res; via = 'live'; }

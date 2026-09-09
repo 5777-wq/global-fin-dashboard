@@ -299,7 +299,11 @@ const Treemap = (() => {
             const totalW = 16 + 6 + nameW;
             const ix = cx - totalW / 2;
             ctx.drawImage(icon, ix, cy - s * 1.15, 16, 16);
+            // 名称必须改左对齐：textAlign 仍是 center 时名称中心落在 ix+22，
+            // 左半截直接压在 logo 上（用户截图实锤的"logo 和文字重叠"）
+            ctx.textAlign = 'left';
             ctx.fillText(name, ix + 22, cy - s * 0.62);
+            ctx.textAlign = 'center';
           } else {
             ctx.fillText(name, cx, cy - s * 0.62);
           }

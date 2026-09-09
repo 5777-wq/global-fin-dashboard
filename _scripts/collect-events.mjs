@@ -152,6 +152,7 @@ async function main() {
       country: place ? place[1] : null,
       importance,
       relatedSymbols: Events.matchSymbols(a.title || ''),
+      relatedAssets: Events.matchRelated(a.title || ''),
     });
   });
 

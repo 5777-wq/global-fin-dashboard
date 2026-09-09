@@ -111,8 +111,19 @@ await test('bus：on/emit/off，监听器抛错不炸其他监听器', () => {
   assert.equal(hits, 1);        // off 生效，不再计数
 });
 
-await test('龙虎榜行映射：secidOf 沪深前缀正确（镜像 tencentOfSecid）', async () => {
-  const src = readFileSync(path.join(ROOT, 'js/sources/lhb.js'), 'utf8');
+await test('宏观映射 matchRelated：Fed→美股/美债/黄金/BTC 全部标 RELATED（相关≠因果）', () => {
+  const rel = EV.matchRelated('Fed signals rate cut in September');
+  assert.ok(rel.some(r => r.sym === 'usINX'));
+  assert.ok(rel.some(r => r.sym === 'EM:101.GC00Y'));
+  assert.ok(rel.some(r => r.sym === 'BTCUSDT'));
+  rel.forEach(r => assert.equal(r.rel, 'RELATED'));
+  assert.equal(EV.matchRelated('local bakery opens new branch').length, 0);
+  // normalize：relatedAssets 采集层直采优先，否则按标题现算
+  const ev = EV.normalize([{ type: 'macro', title: 'ECB meeting', publishedAt: T0 }])[0];
+  assert.ok(ev.relatedAssets.some(r => r.sym === 'EM:119.EURUSD'));
+});
+
+await test('龙虎榜行映射：secidOf 沪深前缀正确（镜像 tencentOfSecid）', async () => {  const src = readFileSync(path.join(ROOT, 'js/sources/lhb.js'), 'utf8');
   const ctx = vm.createContext({ console, Math, Date, Number, String, Array, Object, isNaN, URLSearchParams, RegExp, Set });
   ctx.window = ctx; ctx.globalThis = ctx;
   vm.runInContext(src, ctx, { filename: 'js/sources/lhb.js' });

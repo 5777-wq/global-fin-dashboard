@@ -18,7 +18,7 @@ setTimeout(function () {
   if (s && s.parentNode) s.parentNode.removeChild(s);
 }, 2600);
 </script>
-<link rel="stylesheet" href="css/style.css?v=20260909i">
+<link rel="stylesheet" href="css/style.css?v=20260909j">
 </head>
 <body data-updown="red">
 
@@ -179,7 +179,17 @@ setTimeout(function () {
     <div class="section">
       <div class="section-head">
         <span class="sec-no">01</span>
-        <h2 class="section-title">A股龙虎榜</h2>
+        <h2 class="section-title">席位动向</h2>
+        <span class="sec-line"></span>
+        <span class="section-sub" id="seatDirVia">—</span>
+      </div>
+      <div id="seatDir"><div class="sk sk-row"></div></div>
+      <p class="insight-disclaimer">席位 = 交易所龙虎榜披露的营业部，档案页展示其近 90 天公开上榜轨迹（点击行进席位档案）。席位是营业部口径，不代表任何自然人账户。</p>
+    </div>
+    <div class="section">
+      <div class="section-head">
+        <span class="sec-no">02</span>
+        <h2 class="section-title">今日龙虎榜</h2>
         <span class="sec-line"></span>
         <span class="section-sub" id="lhbVia">—</span>
       </div>
@@ -188,13 +198,42 @@ setTimeout(function () {
     </div>
     <div class="section">
       <div class="section-head">
-        <span class="sec-no">02</span>
+        <span class="sec-no">03</span>
         <h2 class="section-title">公开言论</h2>
         <span class="sec-line"></span>
         <span class="section-sub">Public Statements · 发言 ≠ 交易</span>
       </div>
       <p class="page-sub" id="voicesSub">马斯克 · 特朗普 · 黄仁勋 · 奥尔特曼 等的公开发言动向</p>
       <div class="news-list" id="voicesList"></div>
+    </div>
+  </section>
+
+  <!-- ========== 席位档案（Actor Profile，hash #actor= 深链） ========== -->
+  <section class="view tab-panel" id="view-actor" role="tabpanel" tabindex="-1" aria-label="actor">
+    <div class="detail-head">
+      <button class="back-btn" id="actorBack">← 返回</button>
+      <span class="detail-name" id="actorName">—</span>
+      <span class="actor-type" id="actorType">A股席位</span>
+    </div>
+    <div class="detail-stats num" id="actorMeta"></div>
+    <div class="section">
+      <div class="section-head">
+        <span class="sec-no">01</span>
+        <h2 class="section-title">近 90 天轨迹</h2>
+        <span class="sec-line"></span>
+        <span class="section-sub" id="actorStatsSub">—</span>
+      </div>
+      <div class="breadth-grid" id="actorStats"></div>
+    </div>
+    <div class="section">
+      <div class="section-head">
+        <span class="sec-no">02</span>
+        <h2 class="section-title">上榜记录</h2>
+        <span class="sec-line"></span>
+        <span class="section-sub">点击行进个股 K 线并叠加席位标记</span>
+      </div>
+      <div id="actorTimeline"><div class="sk sk-row"></div></div>
+      <p class="insight-disclaimer">上榜记录来自交易所龙虎榜公开披露（日频），"3日上涨概率"为该席位历史上榜个股的披露统计，不构成预测。席位是营业部口径，"某席位=某游资"属市场传闻，本页不做此推断。</p>
     </div>
   </section>
 
@@ -313,31 +352,32 @@ setTimeout(function () {
      defer 加载不阻塞开屏，globe.js 只在首次进入"事件"页时才真正使用它们 -->
 <script defer src="lib/globe.gl.min.js?v=2.46.2"></script>
 <script defer src="lib/topojson-client.min.js?v=3.1.0"></script>
-<script src="js/utils.js?v=20260909i"></script>
-<script src="js/store.js?v=20260909i"></script>
-<script src="js/proxy.js?v=20260909i"></script>
-<script src="js/data/universe.js?v=20260909i"></script>
-<script src="js/data/industry-chains.js?v=20260909i"></script>
-<script src="js/data/explain.js?v=20260909i"></script>
-<script src="js/technical.js?v=20260909i"></script>
-<script src="js/flags.js?v=20260909i"></script>
-<script src="js/bus.js?v=20260909i"></script>
-<script src="js/events.js?v=20260909i"></script>
-<script src="js/sources/tencent.js?v=20260909i"></script>
-<script src="js/sources/sina.js?v=20260909i"></script>
-<script src="js/sources/eastmoney.js?v=20260909i"></script>
-<script src="js/sources/okx.js?v=20260909i"></script>
-<script src="js/sources/binance.js?v=20260909i"></script>
-<script src="js/sources/fred.js?v=20260909i"></script>
-<script src="js/sources/news.js?v=20260909i"></script>
-<script src="js/sources/worldbank.js?v=20260909i"></script>
-<script src="js/sources/gdelt.js?v=20260909i"></script>
-<script src="js/sources/lhb.js?v=20260909i"></script>
-<script src="js/breadth.js?v=20260909i"></script>
-<script src="js/sessions.js?v=20260909i"></script>
-<script src="js/treemap.js?v=20260909i"></script>
-<script src="js/charts.js?v=20260909i"></script>
-<script src="js/globe.js?v=20260909i"></script>
-<script src="js/app.js?v=20260909i"></script>
+<script src="js/utils.js?v=20260909j"></script>
+<script src="js/store.js?v=20260909j"></script>
+<script src="js/proxy.js?v=20260909j"></script>
+<script src="js/data/universe.js?v=20260909j"></script>
+<script src="js/data/industry-chains.js?v=20260909j"></script>
+<script src="js/data/explain.js?v=20260909j"></script>
+<script src="js/technical.js?v=20260909j"></script>
+<script src="js/flags.js?v=20260909j"></script>
+<script src="js/bus.js?v=20260909j"></script>
+<script src="js/events.js?v=20260909j"></script>
+<script src="js/actors.js?v=20260909j"></script>
+<script src="js/sources/tencent.js?v=20260909j"></script>
+<script src="js/sources/sina.js?v=20260909j"></script>
+<script src="js/sources/eastmoney.js?v=20260909j"></script>
+<script src="js/sources/okx.js?v=20260909j"></script>
+<script src="js/sources/binance.js?v=20260909j"></script>
+<script src="js/sources/fred.js?v=20260909j"></script>
+<script src="js/sources/news.js?v=20260909j"></script>
+<script src="js/sources/worldbank.js?v=20260909j"></script>
+<script src="js/sources/gdelt.js?v=20260909j"></script>
+<script src="js/sources/lhb.js?v=20260909j"></script>
+<script src="js/breadth.js?v=20260909j"></script>
+<script src="js/sessions.js?v=20260909j"></script>
+<script src="js/treemap.js?v=20260909j"></script>
+<script src="js/charts.js?v=20260909j"></script>
+<script src="js/globe.js?v=20260909j"></script>
+<script src="js/app.js?v=20260909j"></script>
 </body>
 </html>

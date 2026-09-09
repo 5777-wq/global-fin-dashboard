@@ -10,7 +10,7 @@
 ![no build](https://img.shields.io/badge/build-none-000?style=flat-square)
 ![no npm](https://img.shields.io/badge/dependencies-0-000?style=flat-square)
 ![no backend](https://img.shields.io/badge/backend-none-000?style=flat-square)
-![tests](https://img.shields.io/badge/tests-132_passing-2ebd85?style=flat-square)
+![tests](https://img.shields.io/badge/tests-138_passing-2ebd85?style=flat-square)
 ![no keys](https://img.shields.io/badge/API_keys-0-000?style=flat-square)
 
 </div>
@@ -131,8 +131,8 @@ DOM updates are incremental patches, and nothing ever throws a blank screen at y
 ## 测试 · Tests
 
 ```bash
-node _test/run-all.mjs            # 全部 10 组 132 项
-node _test/run-all.mjs --offline  # 只跑离线 5 组 75 项（断网/CI 友好）
+node _test/run-all.mjs            # 全部 11 组 138 项
+node _test/run-all.mjs --offline  # 只跑离线 6 组 81 项（断网/CI 友好）
 ```
 
 纯 Node 零依赖。覆盖：treemap 面积守恒与视口数学、情绪指数口径与七段分布守恒、技术指标手算核对

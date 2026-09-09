@@ -80,6 +80,24 @@ const Events = (() => {
     return new Date(ms).toISOString().slice(0, 10);
   }
 
+  /* 宏观主体 → 相关资产（spec: AssetRelation）。映射是"相关"不是"因果"，
+     一律标 RELATED，UI 与直接提及分开渲染。只映射看板里真实存在的标的。 */
+  const ENTITY_MAP = [
+    { re: /\b(fed|fomc|federal reserve|powell)\b/i, syms: ['usINX', 'usIXIC', 'usDJI', 'EM:171.US10Y', 'EM:101.GC00Y', 'BTCUSDT'] },
+    { re: /\b(ecb|european central bank|lagarde)\b/i, syms: ['EM:119.EURUSD'] },
+    { re: /\b(pboc|people'?s bank of china)\b/i, syms: ['sh000001', 'EM:133.USDCNH'] },
+    { re: /\b(boj|bank of japan)\b/i, syms: [] },
+    { re: /\bopec\b/i, syms: ['EM:102.CL00Y'] },
+    { re: /\btariff(s)?\b/i, syms: ['sh000001', 'EM:133.USDCNH'] },
+  ];
+
+  function matchRelated(text) {
+    const s = String(text || '');
+    const out = [];
+    ENTITY_MAP.forEach(e => { if (e.re.test(s)) e.syms.forEach(sym => { if (!out.includes(sym)) out.push(sym); }); });
+    return out.map(sym => ({ sym, rel: 'RELATED' }));
+  }
+
   /* 清洗 + 去重 + 按时间倒序。无效坐标置 null，不猜测。 */
   function normalize(rawList, cap = 260) {
     const seen = new Set();
@@ -105,6 +123,10 @@ const Events = (() => {
         importance: ['high', 'med', 'low'].includes(raw.importance) ? raw.importance : 'med',
         relatedSymbols: resolveRelated(raw.relatedSymbols).concat(
           matchSymbols(raw.title + ' ' + (raw.extra || ''))),
+        // 宏观映射（RELATED）：采集层已给的直接采信，否则按标题现算
+        relatedAssets: Array.isArray(raw.relatedAssets) && raw.relatedAssets.length
+          ? raw.relatedAssets.filter(x => x && typeof x.sym === 'string')
+          : matchRelated(raw.title),
       });
     });
     out.sort((a, b) => b.publishedAt - a.publishedAt);
@@ -174,7 +196,7 @@ const Events = (() => {
     return ((nowMs === undefined ? Date.now() : nowMs) - generatedAtMs) > maxAgeMs;
   }
 
-  return { TYPE_META, SYMBOL_ALIASES, matchSymbols, dedupeKey, toMs, dayOf, normalize,
+  return { TYPE_META, SYMBOL_ALIASES, ENTITY_MAP, matchSymbols, matchRelated, dedupeKey, toMs, dayOf, normalize,
     cluster, impRank, typeColor, typeLabel, eventsForSymbol, toChartEvent,
     latestLhbDate, isStale };
 })();

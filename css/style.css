@@ -839,3 +839,41 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
   .globe-stage > div:first-child { animation: none; }
 }
+
+/* ==================== 席位动向 / 席位档案（Actor-centric） ==================== */
+.srow-head, .srow { display: grid; align-items: center; gap: 12px;
+  grid-template-columns: 34px minmax(140px, 2fr) 88px 88px 88px 92px 16px; }
+.srow-head { padding: 8px 0; border-bottom: 1px solid var(--border);
+  font-size: 10px; color: var(--text-faint); letter-spacing: 0.08em; }
+.srow { padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+.srow:hover { background: var(--bg-hover); }
+.sr-no { font-size: 10px; color: var(--text-faint); }
+.sr-name { font-size: 12.5px; font-weight: 500; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-net, .sr-buy, .sr-sell { font-size: 12px; text-align: right;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sr-count { font-size: 10.5px; color: var(--text-tertiary); text-align: right;
+  font-family: var(--font-mono); }
+.sr-arrow { color: var(--text-faint); font-size: 11px; }
+.sr-date { font-size: 11px; color: var(--text-tertiary); }
+.sr-stock { font-size: 12.5px; font-weight: 500; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-act { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; }
+.sr-tag { font-size: 10px; color: var(--text-tertiary); min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 860px) {
+  .srow-head, .srow { grid-template-columns: 26px minmax(110px, 1.6fr) 84px 70px; }
+  .srow-head span:nth-child(4), .srow .sr-buy, .srow .sr-sell, .srow .sr-count,
+  .srow .sr-arrow, .srow-head span:nth-child(5), .srow-head span:nth-child(6),
+  .srow-head span:nth-child(7) { display: none; }
+}
+
+/* 席位档案页 */
+.actor-type { font-size: 10px; padding: 2px 8px; border: 1px solid var(--border);
+  border-radius: 3px; color: var(--text-tertiary); letter-spacing: 0.08em; white-space: nowrap; }
+.ce-link { background: none; border: 1px solid var(--border); border-radius: 3px;
+  color: var(--accent-signature); font-size: 10.5px; padding: 2px 8px; cursor: pointer;
+  margin-left: auto; }
+.ce-link:hover { border-color: var(--accent-signature); }
+.rel-soft { opacity: 0.75; }
+
