@@ -252,11 +252,8 @@ const Treemap = (() => {
       const W = rect.width, H = rect.height;
       ctx.fillStyle = '#0a0a0a';
       ctx.fillRect(0, 0, W, H);
-      ctx.textBaseline = 'top';
 
       const z = view.zoom;
-      // 字号随缩放适度变大并封顶：放大后小块也能出字（用户反馈）
-      const fontSize = Math.max(11, Math.min(16, 11 * Math.sqrt(z)));
 
       for (let i = 0; i < layout.length; i++) {
         const c = layout[i];
@@ -276,25 +273,56 @@ const Treemap = (() => {
           ctx.lineWidth = 1.5;
           ctx.strokeRect(sx + 0.75, sy + 0.75, w - 1.5, h - 1.5);
         }
-        // 文字条件按"屏幕尺寸"判断：放大后小块出字；字号封顶防爆炸
-        const icon = iconFor ? iconImg(c.item) : null;
-        if (w >= 46 && h >= 30) {
-          ctx.fillStyle = 'rgba(255,255,255,0.95)';
-          ctx.font = `500 ${fontSize}px -apple-system, "PingFang SC", sans-serif`;
-          let tx = sx + 4, tw = w - 8;
-          if (icon && w >= 70) {   // 够大才画 LOGO，文字让位
-            ctx.drawImage(icon, sx + 5, sy + (h - 16) / 2, 16, 16);
-            tx = sx + 26; tw = w - 30;
+
+        /* ---- 文字（TradingView 风格）：居中 + 字号随块面连续自适应，三级降级 ----
+           两行（名称+涨幅）→ 一行（名称）→ 仅涨幅数字；块面小于 13px 才退为纯色块。
+           字号由块的短边决定而非全局常量：大块大字、小块小字，缩小也有信息量。 */
+        const base = Math.min(w, h);
+        if (base < 13) continue;
+        const item = c.item;
+        const pctTxt = item.pct === null || item.pct === undefined || isNaN(item.pct) ? '--'
+          : (item.pct > 0 ? '+': '') + item.pct.toFixed(2) + '%';
+        const cx = sx + w / 2, cy = sy + h / 2;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // 一级：两行居中（名称 + 涨跌幅），字号受宽高双重约束
+        let s = Math.max(9, Math.min(base * 0.17, 30));
+        const icon = iconFor ? iconImg(item) : null;
+        const nameFits = w >= 44;
+        if (nameFits && h >= s * 2.55) {
+          ctx.font = `600 ${s}px -apple-system, "PingFang SC", sans-serif`;
+          const name = fitText(ctx, item.name, w - 10);
+          ctx.fillStyle = 'rgba(255,255,255,0.96)';
+          const nameW = Math.min(ctx.measureText(name).width, w - 10);
+          if (icon && w >= 78) {
+            const totalW = 16 + 6 + nameW;
+            const ix = cx - totalW / 2;
+            ctx.drawImage(icon, ix, cy - s * 1.15, 16, 16);
+            ctx.fillText(name, ix + 22, cy - s * 0.62);
+          } else {
+            ctx.fillText(name, cx, cy - s * 0.62);
           }
-          const name = fitText(ctx, c.item.name, tw);
-          ctx.fillText(name, tx, sy + 4);
-          if (h >= 30 + fontSize + 3) {
-            ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            ctx.font = `${fontSize}px ui-monospace, Menlo, monospace`;
-            const pct = c.item.pct === null || isNaN(c.item.pct) ? '--'
-              : (c.item.pct > 0 ? '+' : '') + c.item.pct.toFixed(2) + '%';
-            ctx.fillText(pct, sx + 4, sy + 4 + fontSize + 3);
-          }
+          ctx.fillStyle = 'rgba(255,255,255,0.82)';
+          ctx.font = `${Math.max(8, Math.round(s * 0.82))}px ui-monospace, Menlo, monospace`;
+          ctx.fillText(pctTxt, cx, cy + s * 0.75);
+          continue;
+        }
+
+        // 二级：单行名称，字号贴着块高走
+        const s1 = Math.max(8, Math.min(base * 0.34, 15));
+        if (w >= 30 && h >= s1 + 3) {
+          ctx.fillStyle = 'rgba(255,255,255,0.94)';
+          ctx.font = `500 ${s1}px -apple-system, "PingFang SC", sans-serif`;
+          ctx.fillText(fitText(ctx, item.name, w - 5), cx, cy);
+          continue;
+        }
+
+        // 三级：只放得下一个数字——画涨幅（比名称信息量大），8px 是可辨认下限
+        if (w >= 21 && h >= 9) {
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.font = '8px ui-monospace, Menlo, monospace';
+          ctx.fillText(pctTxt, cx, cy);
         }
       }
       ctx.restore();

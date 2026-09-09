@@ -24,6 +24,7 @@
     degraded: new Map(),      // symbol → 'backup' | 'cache'
     heatMode: 'cn',
     heatSize: 'cap',
+    heatTopMode: 'top',    // A股热力图范围：top=市值 Top500（默认）| all=全市场
     heatItems: { cn: [], crypto: [] },
     // 按视图分开记录来源状态：单槽位会被后加载的源覆盖，导致来源标注张冠李戴
     heatVia: { cn: null, crypto: null },
@@ -69,7 +70,7 @@
   const $ = (id) => document.getElementById(id);
   const el = {};
   const DOM_IDS = ['tabs', 'cardWall', 'watchWall', 'marketSub', 'selftestOut', 'selftest',
-    'heatCanvas', 'heatTip', 'heatWrap', 'heatSection', 'heatSub', 'heatSizeToggle',
+    'heatCanvas', 'heatTip', 'heatWrap', 'heatSection', 'heatSub', 'heatSizeToggle', 'heatTopToggle',
     'heatReset', 'heatZoom', 'heatHint',
     'newsList', 'newsSub', 'chainList', 'chainSub',
     'boardStrip', 'boardVia', 'boardDrawer',
@@ -593,7 +594,13 @@
   }
 
   function heatItemsForRender() {
-    const rows = state.heatItems[state.heatMode] || [];
+    let rows = state.heatItems[state.heatMode] || [];
+    // A股默认只画市值 Top 500（TradingView/finviz 同款思路）：
+    // 5500 只塞一屏平均每块 9×9px，物理上放不下文字，"整体行情"也主要靠头部市值。
+    // 开关可切回全市场（供放大探索），宽度/情绪统计始终用全量数据，不受影响。
+    if (state.heatMode === 'cn' && state.heatTopMode !== 'all' && rows.length > 500) {
+      rows = rows.slice().sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0)).slice(0, 500);
+    }
     return rows.map(r => ({
       name: r.name, code: r.code, pct: r.changePct, price: r.price,
       value: heatValue(r), payload: r,
@@ -642,7 +649,10 @@
     const viaTxt = via === 'cache'
       ? '缓存 · ' + fmtTime(state.heatCachedAt[state.heatMode])
       : via === 'backup' ? '备用源' : via ? '实时' : '等待数据';
-    el.heatSub.textContent = `${n} 个标的 · 面积=${state.heatMode === 'crypto' && state.heatSize === 'cap' ? '24h成交额' : state.heatSize === 'cap' ? '市值' : '涨跌幅'} · ${viaTxt}`;
+    const rangeTxt = state.heatMode === 'cn'
+      ? (state.heatTopMode === 'top' ? ' · 市值 Top 500（宽度统计仍用全量）' : ' · 全市场')
+      : '';
+    el.heatSub.textContent = `${n} 个标的 · 面积=${state.heatMode === 'crypto' && state.heatSize === 'cap' ? '24h成交额' : state.heatSize === 'cap' ? '市值' : '涨跌幅'}${rangeTxt} · ${viaTxt}`;
     // 空态：全源失败时给明确文案，而不是黑画布 + "0 个标的 · 等待数据"
     let empty = document.getElementById('heatEmpty');
     if (!n) {
@@ -1849,6 +1859,8 @@
     if (state.heatMode === mode) return;
     state.heatMode = mode;
     document.querySelectorAll('[data-heat]').forEach(b => b.classList.toggle('active', b.dataset.heat === mode));
+    // 范围开关只对 A股有意义（加密就 80 块，块块有字）
+    if (el.heatTopToggle) el.heatTopToggle.hidden = mode !== 'cn';
     // 换视图重置视口：否则从 ×6 的 A股视图切到加密，进来是一个陌生的放大视图
     if (state.heat) state.heat.resetView();
     if (!state.heatItems[mode].length) {
@@ -2226,6 +2238,13 @@
       state.heatSize = state.heatSize === 'cap' ? 'pct' : 'cap';
       el.heatSizeToggle.textContent = '面积：' + (state.heatSize === 'cap' ? '市值' : '涨跌幅');
       el.heatSizeToggle.dataset.size = state.heatSize;   // 原先只写内存不改 dataset（死属性）
+      drawHeat();
+    });
+
+    // A股热力图范围：市值 Top 500（默认，块块有字）⇄ 全市场（放大探索用）
+    el.heatTopToggle.addEventListener('click', () => {
+      state.heatTopMode = state.heatTopMode === 'top' ? 'all' : 'top';
+      el.heatTopToggle.textContent = state.heatTopMode === 'top' ? '范围：市值 Top 500' : '范围：全市场';
       drawHeat();
     });
 
