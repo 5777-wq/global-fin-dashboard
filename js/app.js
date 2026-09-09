@@ -72,7 +72,7 @@
     'searchInput', 'searchResults', 'settingsBtn', 'settingsModal', 'settingsClose',
     'segUpdown', 'segRefresh', 'swDegraded', 'sourceStatus', 'updatedLine',
     'detailName', 'detailCode', 'detailPrice', 'detailChg', 'detailStar', 'detailStats',
-    'detailBack', 'klineChart', 'chartEmpty', 'detailReports', 'detailInsight', 'maToggle'];
+    'detailBack', 'klineChart', 'chartBox', 'detailReports', 'detailInsight', 'maToggle'];
 
   const pctClass = (p) => (p === null || p === undefined || isNaN(p)) ? 'flat' : (p > 0 ? 'up' : p < 0 ? 'down' : 'flat');
   // 缓存 matchMedia 结果：渲染期每张卡片查 2 次，整墙渲染就是上百次 matchMedia 调用
@@ -1028,7 +1028,7 @@
     // 竞态守卫：快速切周期/换标的时，慢的旧请求回来不许覆盖新图
     const gen = ++state.chartGen;
     const stale = () => gen !== state.chartGen || state.detail !== t;
-    el.chartEmpty.hidden = true;
+    el.chartBox.classList.remove('off');
     let data = [];
     let kind = period === 'min' ? 'trend' : 'kline';
 
@@ -1053,8 +1053,9 @@
     if (stale()) return;            // 期间用户又切了周期/退出了详情
 
     if (!data.length) {
+      // 该周期真的没数据：整块收起，不留占位文案（用户明确要求）
       disposeChart();
-      el.chartEmpty.hidden = false;
+      el.chartBox.classList.add('off');
       return;
     }
 
@@ -1063,7 +1064,7 @@
       state.chart = kind === 'trend' ? window.Charts.createTrend(el.klineChart) : window.Charts.createKline(el.klineChart);
       state.chartKind = kind;
     }
-    if (!state.chart) { el.chartEmpty.hidden = false; return; }
+    if (!state.chart) { el.chartBox.classList.add('off'); return; }
     if (kind === 'trend') {
       // prevClose 优先用卡片/缓存里同步可得的报价，避免与 refreshDetailQuote 的竞态
       // （四路并行时 quote 常常未到，null 会让 charts 把收跌日整条染成涨色）

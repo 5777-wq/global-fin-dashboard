@@ -136,6 +136,19 @@ await test('computeProfile：数据不足 / 脏数据返回 null', () => {
   assert.equal(W.Masters.computeProfile(bad), null, '全脏数据应 null');
 });
 
+await test('computeProfile：新画像字段手算核对（回撤/高点距今/20日动量/均线偏离）', () => {
+  const kl = [];
+  for (let i = 0; i < 40; i++) kl.push({ close: 100 + 2 * i });            // 涨段：峰 178 @ i=39
+  const peakV = 178;
+  for (let k = 1; k <= 20; k++) kl.push({ close: peakV * Math.pow(0.99, k) }); // 跌段 20 根
+  const prof = W.Masters.computeProfile(kl);
+  const last = kl[59].close;
+  assert.ok(Math.abs(prof.maxDDPct - (last / peakV - 1) * 100) < 0.01, 'maxDD ' + prof.maxDDPct);
+  assert.equal(prof.barsSinceHigh, 20, '距高点交易日数 ' + prof.barsSinceHigh);
+  assert.ok(Math.abs(prof.mom20Pct - (last / kl[39].close - 1) * 100) < 0.01, 'mom20 ' + prof.mom20Pct);
+  assert.ok(prof.ma20OffPct < 0 && prof.aboveMA20 === false, '下跌段现价应在 20 日线下方');
+});
+
 await test('posIn52w：52 周区间位置手算核对', () => {
   const kl = []; let v = 100;
   for (let i = 0; i < 60; i++) { kl.push({ close: v }); v += 1; }   // 100 → 159
@@ -168,6 +181,23 @@ const MOCK_KL = (start, days, daily) => {
   for (let i = 0; i < days; i++) { kl.push({ time: 'd' + i, open: v, close: v, high: v, low: v }); v *= daily; }
   return kl;
 };
+
+await test('analyze：每条输出携带本标的专属内容（数字或属性），不是纯口号', () => {
+  const p = W.Masters.computeProfile(MOCK_KL(100, 120, 1.003));
+  const out = W.Masters.analyze({ symbol: 'sh600519', market: 'cn', code: '600519' }, p);
+  out.forEach(m => {
+    const hasNum = m.points.some(x => /\d/.test(x.t));
+    assert.ok(hasNum, m.name + ' 所有条目都不含数字（疑似模板口号）');
+    const hasPercent = m.points.some(x => x.t.includes('%'));
+    assert.ok(hasPercent || m.headline.includes('%'), m.name + ' 无任何百分比数据');
+  });
+  // headline 随数据变化：同一位大师对强势/弱势标的 headline 不同
+  const strong = W.Masters.analyze({ symbol: 'sh600519', market: 'cn' }, W.Masters.computeProfile(MOCK_KL(100, 200, 1.004)));
+  const weak = W.Masters.analyze({ symbol: 'sh600519', market: 'cn' }, W.Masters.computeProfile(MOCK_KL(100, 200, 0.995)));
+  let diffHeads = 0;
+  strong.forEach((m, i) => { if (m.headline !== weak[i].headline) diffHeads++; });
+  assert.ok(diffHeads >= 4, '强弱市况下动态 headline 仅 ' + diffHeads + ' 位大师不同，动态化不足');
+});
 
 await test('analyze：茅台的分析包含生意属性 + 真实画像数字（不是通用口号）', () => {
   const p = W.Masters.computeProfile(MOCK_KL(100, 120, 1.003));

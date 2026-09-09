@@ -4,6 +4,9 @@
    2) 属性层：TARGET_PROFILES 人工维护的生意常识（商业模式/护城河/主要风险/林奇分类）；
    3) 框架层：8 位大师的公开方法论，用于"解读"事实与属性。
    铁律：只给"这个框架下怎么提问 + 事实是什么"，绝不说"应该买/卖"；
+   ★ 反模板铁律（2026-09）：每条分析必须携带本标的的专属内容——
+   画像数字（近一年/距高点/回撤/波动/均线偏离/高点距今）或属性表字段（biz/moat/risk/g/reflex），
+   禁止跨标的复读的哲学口号；headline 由数据条件动态生成。
    ⚠ 数据截止：TARGET_PROFILES 属性层为人工维护的静态常识（2026-08 整理），
    公司业务结构变化后需人工更新，不随行情自动刷新。
    财务数据（ROE/PE/现金流）免费源拿不到，一律标注为"数据缺口：请翻财报"。
@@ -88,17 +91,6 @@ const Masters = (() => {
   };
 
   const G_LABEL = { slow: '缓慢增长', steady: '稳定增长', fast: '快速成长', cyclical: '强周期', turn: '困境反转候选', highyield: '高股息', index: '指数', asset: '资产类', macro: '宏观变量' };
-  const G_HINT = {
-    slow: '这类公司的尺子是股息与现金流，别为它付成长的价',
-    steady: '林奇给它的尺子：增速 10-15% 配 10-15 倍 PE 属于合理，先去查市盈率',
-    fast: '林奇的尺子是 PEG（PE÷增速）<1 才划算——需要 PE 和增速两个数，行情里没有，去查',
-    cyclical: '周期股别用 PE 估值——低 PE 常是周期顶，要看供需拐点',
-    turn: '困境反转的关键是"困境是否见底"，赚的是预期修复的钱',
-    highyield: '高股息的尺子是股息可持续性：派息率、现金流、负债',
-    index: '指数不用挑公司，大师们对它的分歧最小：定投即可参与，择时是难题',
-    asset: '资产类没有"生意"可分析，看的是宏观变量与资金流',
-    macro: '宏观变量的对手盘是央行，散户胜率天然吃亏',
-  };
 
   const pc = (v, d = 1) => (v > 0 ? '+' : '') + Number(v).toFixed(d);
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
@@ -113,121 +105,176 @@ const Masters = (() => {
 
   /* ============ 每位大师的"标的评估器" ============
      输入 target（symbol/market/name/code）+ profile（K线画像），输出具体分析条目
-     条目 k: 'fact' 客观数据 / 'view' 框架解读 / 'gap' 数据缺口（要翻财报） */
+     条目 k: 'fact' 客观数据 / 'view' 框架解读 / 'gap' 数据缺口（要翻财报）
+     铁律：每条必须含"本标的专属"内容——画像数字或属性表字段，禁止跨标的复读的口号；
+     headline 由数据条件动态生成，不用固定格言。 */
+  const GAP = {
+    stock: (who) => `决定下一步的证据只在财报里：${who === '巴菲特' ? 'ROE 是否常年 >12%、自由现金流是否为正、有息负债多重' : who === '芒格' ? '负债结构、资本再投资的去向、管理层历史失信记录' : who === '格雷厄姆' ? '净流动资产、市盈率与市净率的历史分位' : who === '彼得·林奇' ? '机构持仓比例、内部人增减持、公司回购' : '盈利质量、现金流与负债'}——行情软件给不了，一条条查。`,
+    index: (who) => `指数没有财报可翻，${who === '格雷厄姆' ? '要看的是估值分位——低于历史 30% 分位才算进入他的兴趣区' : who === '巴菲特' ? '这页行情给不了的是成分股盈利趋势与估值分位，查到再下结论' : '要查的是估值分位与成分盈利趋势'}。`,
+    asset: () => `无息资产没有账本可查：它的全部"基本面"就是实际利率与资金流数据——查这两个，别看图。`,
+    macro: () => `宏观品种的"财报"是央行：议息日程、政策红线、持仓调查——这些日期比任何技术位都硬。`,
+  };
+
   const ANALYZERS = {
     buffett(t, p, tp) {
       const pts = [];
-      if (p) pts.push({ k: 'fact', t: `近一年 ${pc(p.yearChangePct)}%，现价距一年最高 ${pc(p.offHighPct)}%、距最低 ${pc(p.offLowPct)}%。` });
-      if (tp && tp.biz) {
-        pts.push({ k: 'view', t: `他先问生意本身：${tp.biz}。护城河评估：${tp.moat}。` });
-        if (tp.g === 'index') pts.push({ k: 'view', t: `他对普通人的著名建议恰恰是"买指数基金定期买入"，而不是挑个股——你现在看的正是他推荐的那类东西。` });
-        else if (tp.g === 'fast') pts.push({ k: 'view', t: `快速成长股他并非不买（重仓过苹果），但他要求成长来自生意本身，而不是风口叙事。这个标的的成长，属于哪一种？` });
-        else if (tp.g === 'cyclical' || tp.g === 'macro') pts.push({ k: 'view', t: `强周期/宏观品种他几乎不碰——理由很简单："我解释不清它明年的盈利"。他宁可错过。` });
-        else if (tp.g === 'asset') pts.push({ k: 'view', t: `无现金流的资产他从不介入（黄金/加密在他眼里不生蛋）——他的世界里，资产价值来自它能产出的现金。` });
-        else pts.push({ k: 'view', t: `他拿得住这类生意的前提只有一个：买价没有透支未来十年。价格是否透支，取决于你对它长期盈利的判断，而非当前涨跌。` });
-      }
-      pts.push({ k: 'view', t: `他会问你的最后一题：如果这个价格锁五年不能卖，你还愿意持有吗？` });
-      pts.push({ k: 'gap', t: `他真正看重的 ROE、自由现金流、负债率，免费行情源拿不到——请翻财报补上这一课再做判断。` });
-      return { headline: '先问生意，再问价格，最后才轮到行情屏幕。', points: pts };
+      const g = tp && tp.g;
+      const kind = g === 'index' ? 'index' : (g === 'asset' || g === 'macro') ? g : 'stock';
+      if (p) pts.push({ k: 'fact', t: `近一年 ${pc(p.yearChangePct)}%，现价距 52 周高点 ${pc(p.offHighPct)}%、距低点 ${pc(p.offLowPct)}%——他只关心价格相对"这门生意值多少钱"的折溢价，一年的走势不在他的公式里。` });
+      if (tp && tp.biz && kind === 'stock') pts.push({ k: 'view', t: `生意本身：${tp.biz}。护城河这一关他给不给过：${tp.moat}。` });
+      if (g === 'index') pts.push({ k: 'view', t: `他给普通人的著名建议恰是你屏幕上这类东西：低成本指数基金、定期买、别择时——"不选股"本身就是他的选股答案。` });
+      else if (g === 'fast') pts.push({ k: 'view', t: `他重仓过苹果，证明成长股不是禁区——前提是成长来自生意本身（客户、利润、复购），而非风口叙事。这只的成长属于哪一种，只有你能回答。` });
+      else if (g === 'cyclical' || g === 'macro') pts.push({ k: 'view', t: `强周期与宏观品种他几乎全避——"我解释不清它明年的盈利"。为此错过的比躲过的多，他不在乎。` });
+      else if (g === 'asset') pts.push({ k: 'view', t: `不产生现金流的资产在他的框架里没有价值锚：资产的价值=它未来能吐出的现金。这只"蛋"不存在，他直接放弃评估。` });
+      pts.push({ k: 'gap', t: GAP[kind]('巴菲特') });
+      let head = '先确认生意看得懂，再确认价格没透支——顺序不能颠倒。';
+      if (g === 'index') head = '他给普通人的答案就是你正在看的东西：低成本、定投、别看盘。';
+      else if (g === 'asset') head = '不生蛋的资产他不评估——"放弃"本身就是结论。';
+      else if (g === 'macro' || g === 'cyclical') head = '解释不清明年盈利的东西，他宁可全错过。';
+      else if (p && p.offHighPct < -25) head = '价格先跌出了安全感——但生意是否也一起变坏了？只有财报能回答。';
+      return { headline: head, points: pts };
     },
 
     munger(t, p, tp, explain) {
       const pts = [];
-      if (tp && tp.risk) pts.push({ k: 'view', t: `反过来想——这门生意/资产十年后衰落的最可能路径：${tp.risk}。想清楚死法，再看活法（价格）。` });
-      pts.push({ k: 'view', t: `一句话讲清测试：${explain ? '「' + explain + '」——如果你复述不出来，说明它还在你的能力圈外。' : '你能复述出来吗？讲不清就别碰。'}` });
-      if (p && p.volAnnual !== null) pts.push({ k: 'fact', t: `年化波动 ${p.volAnnual.toFixed(0)}%。芒格的提醒：避免蠢比追求聪明重要——重仓高波动品种前，先确认这不是"为了赚快钱"的冲动。` });
-      pts.push({ k: 'gap', t: `质量要靠财报验证：负债结构、资本再投资的去向，比这周的涨跌重要一个数量级。` });
-      return { headline: '宁要模糊的正确，不要精确的错误；反过来想，总是反过来想。', points: pts };
+      if (tp && tp.risk) pts.push({ k: 'view', t: `反过来想——它十年后怎么死？最可能的路径：${tp.risk}。想清楚死法，再谈活法（价格）。` });
+      pts.push({ k: 'view', t: `能力圈测试：把${explain ? '「' + explain + '」' : '这门生意'}一句话讲给外行听。讲不顺 = 还在圈外，圈外不下注。` });
+      if (p && p.volAnnual !== null) pts.push({ k: 'fact', t: `年化波动 ${p.volAnnual.toFixed(0)}%、年内最大回撤 ${pc(p.maxDDPct)}%——先确认这个量级的回撤不影响你的睡眠和生活，这是他说的"避免蠢"的量化版。` });
+      pts.push({ k: 'gap', t: GAP[tp && tp.g === 'index' ? 'index' : (tp && (tp.g === 'asset' || tp.g === 'macro')) ? tp.g : 'stock']('芒格') });
+      let head = '宁要模糊的正确，不要精确的错误；反过来想，总是反过来想。';
+      if (tp && tp.risk) head = `先排除"${tp.risk.split('、')[0].split('，')[0]}"这个死法，再谈收益。`;
+      else if (p && p.volAnnual !== null && p.volAnnual > 50) head = `年化波动 ${p.volAnnual.toFixed(0)}% 的东西，先用小仓证明自己拿得住。`;
+      return { headline: head, points: pts };
     },
 
-    graham(t, p) {
+    graham(t, p, tp) {
       const pts = [];
+      const kind = tp && (tp.g === 'index' || tp.g === 'asset' || tp.g === 'macro') ? tp.g : 'stock';
+      let pos = null;
       if (p) {
-        const pos = posIn52w(p);
-        pts.push({ k: 'fact', t: `现价处于 52 周区间的 ${pos === null ? '--' : Math.round(pos * 100) + '%'} 位置（高 ${p.high52w?.toFixed(2)} / 低 ${p.low52w?.toFixed(2)}）。` });
+        pos = posIn52w(p);
+        pts.push({ k: 'fact', t: `现价处于 52 周区间 ${pos === null ? '--' : Math.round(pos * 100) + '%'} 分位（高 ${p.high52w?.toFixed(2)} / 低 ${p.low52w?.toFixed(2)}），年化波动 ${p.volAnnual === null ? '--' : p.volAnnual.toFixed(0) + '%'}——后者就是"市场先生"的情绪强度计。` });
         if (pos !== null) {
           pts.push({ k: 'view', t: pos > 0.7
-            ? `贴近区间顶部——市场先生此刻很乐观。对他而言这里没有安全边际可言：折扣来自价格与保守估值的差距，而不是趋势的强势。`
+            ? `贴近区间顶部：市场先生正乐观，此处他毫无兴趣出手——折扣必须来自价格与保守估值的差距，而不是趋势的强势。`
             : pos < 0.3
-              ? `靠近区间底部——便宜了，但他的第一问是"公司本身变坏了吗"。价格便宜不等于值得买，烟蒂也可能着火。`
-              : `区间中部——他此刻大概率只是在观察。安全边际要的是"五毛买一块"，而不是"比昨天便宜"。` });
+              ? `接近区间底部：便宜引起了他的注意，但第一问是"公司本身变坏了吗"——烟蒂也可能着火。`
+              : `区间中部：他此刻大概率只在观察。安全边际要"五毛买一块"，"比昨天便宜"不算数。` });
         }
-        if (p.volAnnual !== null) pts.push({ k: 'fact', t: `年化波动 ${p.volAnnual.toFixed(0)}%——这是"市场先生"情绪强度的计量。波动不是风险，把波动当风险才是。` });
       }
-      pts.push({ k: 'gap', t: `保守估值（净流动资产/盈利倍数下限）必须自己算——需要财报，行情软件给不了。` });
-      return { headline: '把股票当公司的所有权，价格是别人情绪的报价。', points: pts };
+      pts.push({ k: 'gap', t: GAP[kind]('格雷厄姆') });
+      let head = '把股票当公司的所有权，把报价当别人情绪的出价。';
+      if (pos !== null) head = pos > 0.7 ? '市场先生在报高价——他的纪律是此时只等，不追。'
+        : pos < 0.3 ? '报价进入了他的兴趣区：先验尸，再捡烟蒂。'
+        : '安全边际是等出来的，不是追出来的。';
+      return { headline: head, points: pts };
     },
 
     lynch(t, p, tp) {
       const pts = [];
       const g = tp && tp.g;
-      if (g) {
-        pts.push({ k: 'view', t: `林奇分类法：这是「${G_LABEL[g]}」类型。${G_HINT[g]}。` });
-      }
-      if (p) pts.push({ k: 'fact', t: `近一年 ${pc(p.yearChangePct)}%，年化波动 ${p.volAnnual === null ? '--' : p.volAnnual.toFixed(0) + '%'}。` });
-      if (tp && tp.biz) pts.push({ k: 'view', t: `他的选股线索常在生活里：${tp.biz}。你或你身边的人，用得到它的产品/服务吗？用得爽吗？这是他的第一手调研。` });
-      if (g === 'index') pts.push({ k: 'view', t: `他对普通人的建议最简单：买指数基金，然后别看盘。分散在 500 家公司里，睡得着觉。` });
-      pts.push({ k: 'gap', t: `他最依赖的 PEG 需要市盈率与增速——行情源没有这两个数，投资前自己查。` });
-      return { headline: '买你真正了解的公司，用对类型的尺子量它。', points: pts };
+      const yr = p ? `近一年 ${pc(p.yearChangePct)}%` : '近期涨跌';
+      const BY_G = {
+        slow: `缓增型（${G_LABEL.slow}）：尺子是股息与负债，不是涨幅。${yr}的波动与此无关——把它当"会分红的债券"来审。`,
+        steady: `稳定增长型：经验法则是 10-15% 的增速配 10-15 倍 PE。注意：${yr}是股价不是盈利增速，两本账别混。`,
+        fast: `快速成长型：他的尺子是 PEG（PE÷增速）<1。PE 和增速行情都给不了——${yr}只是价格波动，PEG 得自己查财报算。`,
+        cyclical: `周期型：低 PE 常是周期顶的陷阱。判断位置别看 K 线（${yr}），去看产品价格与库存所处阶段。`,
+        turn: `困境反转型：赚的是预期修复。${yr}里已定价了一部分修复——"困境是否见底"要用现金流拐点确认，不能用涨幅确认。`,
+        highyield: `高股息型：股息可持续性三件套——派息率、经营现金流、负债率。${yr}的涨跌与股息安全毫无关系。`,
+        index: `指数：他对普通人的最简建议——买下它，然后别看盘。`,
+        asset: `这一类不在他的射程：他只分析"能走进去的生意"。`,
+        macro: `这一类不在他的射程：他只分析"能走进去的生意"。`,
+      };
+      if (g) pts.push({ k: 'view', t: BY_G[g] });
+      if (p) pts.push({ k: 'fact', t: `最近 20 个交易日 ${p.mom20Pct === null ? '--' : pc(p.mom20Pct)}%，年化波动 ${p.volAnnual === null ? '--' : p.volAnnual.toFixed(0) + '%'}——短期波动是噪音，他让你盯的是十年后。` });
+      if (tp && tp.biz && g !== 'index' && g !== 'asset' && g !== 'macro') pts.push({ k: 'view', t: `他的第一手调研从生活开始：${tp.biz}——你或身边人用得到它吗？用得爽吗？答不上来就先去体验一次。` });
+      pts.push({ k: 'gap', t: g === 'index' || g === 'asset' || g === 'macro' ? GAP[g]('彼得·林奇') : `他的清仓预警是"机构扎堆、内部人停止增持"——持仓数据行情源没有，去查。` });
+      const HEAD = { slow: '把它当债券审：分红与负债是全部考题。', steady: '先分类，再用对应的尺子量——尺子错了全错。', fast: '成长股的尺子是 PEG：先把两个数查齐再回来。', cyclical: '别用市盈率读周期股，去读产品价格。', turn: '反转的钱赚在预期修复：确认见底再谈其他。', highyield: '股息的尺子是现金流，不是涨跌幅。', index: '最省心的持有方式：买下它，然后别看盘。', asset: '走进不去的生意，他直接放弃。', macro: '走进不去的生意，他直接放弃。' };
+      return { headline: g ? HEAD[g] : '先去搞清它靠什么赚钱，再谈别的。', points: pts };
     },
 
     soros(t, p, tp) {
       const pts = [];
       const reflexive = !tp || (tp.reflex && /很高|极高/.test(tp.reflex));
-      if (p) {
-        pts.push({ k: 'fact', t: `近一年 ${pc(p.yearChangePct)}%，距一年最高 ${pc(p.offHighPct)}%。` });
-        if (p.yearChangePct > 30 && reflexive) pts.push({ k: 'view', t: `这个涨幅里，基本面改善和"越涨越有人信"的自我强化各占几成？——反身性品种的涨势会自己喂养自己，直到喂不动。` });
-        if (p.yearChangePct < -30) pts.push({ k: 'view', t: `深跌之后他反而会问：下跌本身是否也在制造下跌（强平/赎回循环）？反身性两个方向都成立。` });
+      if (p) pts.push({ k: 'fact', t: `近一年 ${pc(p.yearChangePct)}%，52 周高点出现在 ${p.barsSinceHigh} 个交易日前，期间最大回撤 ${pc(p.maxDDPct)}%。` });
+      if (p && p.yearChangePct > 25 && reflexive) {
+        pts.push({ k: 'view', t: p.barsSinceHigh <= 10
+          ? `新高就在十个交易日内："越涨越有人信"的强化循环大概率仍在续期——他的问题从来不是涨到哪，而是循环会在哪一段断掉。`
+          : `高点已过去 ${p.barsSinceHigh} 个交易日、年内仍涨 ${pc(p.yearChangePct)}%——强化循环断过一次又续上了？这种二次探顶是他最警惕的形态。` });
+      } else if (p && p.yearChangePct < -25) {
+        pts.push({ k: 'view', t: `深跌会自己制造深跌：亏损触发赎回与强平，抛压再砸出新低。他不问"跌够了没"，只问强平循环断了没——断了，反身性才会掉头。` });
+      } else if (p) {
+        pts.push({ k: 'view', t: `年涨跌仅 ${pc(p.yearChangePct)}%、最大回撤 ${pc(p.maxDDPct)}%：大循环尚未启动。他此刻在等的是"错了损失有限、对了空间很大"的不对称时机，不是方向观点。` });
       }
-      pts.push({ k: 'view', t: `他的核心纪律：重要的不是方向对错，而是对时赚多少、错时亏多少。进场前先写好两行字——"我错在哪、亏多少离场"。` });
-      if (tp && tp.reflex && tp.reflex !== '低' && tp.reflex !== '—') pts.push({ k: 'view', t: `情绪属性：${tp.reflex}。识别你此刻处于强化循环的哪一段，比预测终点现实得多。` });
-      return { headline: '价格不只是反映现实，还会反过来改变现实。', points: pts };
+      if (tp && tp.reflex && tp.reflex !== '低' && tp.reflex !== '—') pts.push({ k: 'view', t: `它的情绪属性被标为"${tp.reflex}"——这是他决定参与还是围观的依据：反身性越强，仓位纪律越要先行于观点。` });
+      if (!pts.length) pts.push({ k: 'view', t: `价格不只是反映现实，还会反过来改变现实——先找它在强化循环里的位置，再谈方向。` });
+      let head = '没有反身性大循环时，他宁愿旁观。';
+      if (p && p.yearChangePct > 25 && reflexive) head = '涨势在自我喂养——识别循环位置，比预测顶部现实。';
+      else if (p && p.yearChangePct < -25) head = '下跌也在自我强化——问循环断没断，不问跌够没。';
+      return { headline: head, points: pts };
     },
 
     dalio(t, p, tp) {
       const m = t.market;
-      const role = m === 'crypto' ? '极端波动资产——他的全天候组合里这类资产的配置是零。它只能用"全亏也不影响生活"的那部分钱'
-        : m === 'commodity' || (t.symbol || '').includes('GC') ? '对冲与分散工具——黄金在他的框架里是组合的保险，不是进攻头寸'
-          : m === 'macro' || m === 'fx' ? '宏观头寸：本质是押注利率/通胀/利差的方向'
-            : '单一公司股票——他先问你的组合：这一类资产（同一国家、同一行业）已经占了多少？';
-      const pts = [{ k: 'view', t: `先看组合再看标的：${role}。` }];
-      if (p && p.volAnnual !== null && p.volAnnual > 40) pts.push({ k: 'fact', t: `年化波动 ${p.volAnnual.toFixed(0)}%——单个标的的波动就足以扰动整个组合，仓位比选股重要。` });
-      pts.push({ k: 'view', t: `他会问的宏观题：什么环境会让这笔投资很难受？（利率上行？衰退？通胀反弹？）现在离那种环境有多远？` });
-      pts.push({ k: 'view', t: `他的原则：与其预测，不如配置——让组合在几种宏观情景下都"不死"。` });
-      return { headline: '经济像机器，周期有规律；押注单一方向是赌博，配置才是投资。', points: pts };
+      const isGold = (t.symbol || '').includes('GC') || m === 'commodity';
+      const role = m === 'crypto' ? '极端波动资产：他的全天候组合里这类配置是零——只能用"全亏也不影响生活"的那部分钱装它'
+        : isGold ? '对冲工具：黄金在他的框架里是组合的保险单，不是进攻头寸——买它之前先写下它要对冲什么'
+          : (m === 'macro' || m === 'fx') ? '宏观头寸：本质是押注两国利差/通胀差的方向，对手盘是两国央行'
+            : '单一公司股票：他先问你的组合——同一国家、同一行业的敞口已经占了多少？';
+      const pts = [{ k: 'view', t: `组合视角先行：${role}。` }];
+      if (p && p.volAnnual !== null) pts.push({ k: 'fact', t: `年化波动 ${p.volAnnual.toFixed(0)}%、年内最大回撤 ${pc(p.maxDDPct)}%——这两个数决定它在你组合里的仓位上限，与"看好不看好"无关。` });
+      pts.push({ k: 'view', t: m === 'crypto'
+        ? '他会问的难受场景：流动性收紧时加密与成长股同跌。你的组合能否承受两者同时腰斩？答不了就减仓位，而不是减顾虑。'
+        : isGold ? '保险的保费是机会成本：实际利率长期上行时黄金会失色——写下这个反方场景，才算配过"险"。'
+          : (m === 'macro' || m === 'fx') ? '先看政策日程再谈图形：议息会议、干预红线——这些日期比任何技术位都硬。'
+            : `与其预测下一场危机，不如让组合在利率上行、衰退、通胀反弹三种情景下都"不死"——这笔仓位帮它做到吗？` });
+      let head = '先看组合，再看标的——别把重复下注当分散。';
+      if (m === 'crypto') head = '全天候组合装不下它：用"全亏也不心疼"的那部分钱。';
+      else if (isGold) head = '它是组合的保险，不是进攻头寸。';
+      else if (m === 'macro' || m === 'fx') head = '这是宏观头寸：真正的对手盘是央行。';
+      return { headline: head, points: pts };
     },
 
     oneil(t, p) {
       const pts = [];
       if (p) {
-        if (p.aboveMA60 !== null) pts.push({ k: 'fact', t: `趋势位置：现价${p.aboveMA60 ? '站上' : '跌破'} 60 日线${p.aboveMA20 === null ? '' : p.aboveMA20 ? '，且在 20 日线上方（短期强势）' : '，且在 20 日线下方（短期走弱）'}。` });
+        if (p.aboveMA20 !== null) pts.push({ k: 'fact', t: `距 52 周新高 ${pc(p.offHighPct)}%（高点在 ${p.barsSinceHigh} 个交易日前）；现价位于 20 日线${p.aboveMA20 ? '上' : '下'}方 ${Math.abs(p.ma20OffPct).toFixed(1)}%、60 日线${p.aboveMA60 ? '上' : '下'}方 ${Math.abs(p.ma60OffPct).toFixed(1)}%。` });
         if (p.offHighPct !== null) {
-          pts.push({ k: 'fact', t: `距一年新高 ${pc(p.offHighPct)}%。` });
           pts.push({ k: 'view', t: p.offHighPct > -5
-            ? `贴近新高——CANSLIM 的经典买点就是"放量突破一年新高的强者"。但注意：他同时要求紧止损，突破失败立刻离场。`
+            ? `贴近新高——CANSLIM 的经典买点就是"放量突破一年新高的强者"。他同时要求紧止损：突破失败立即离场，止损位进场前就定好。`
             : p.offHighPct > -15
-              ? `半山腰——既不是他的买点（等放量创新高），更不是抄底对象。`
-              : `深度回撤中——这在他的体系里是绝对的禁区：他从不抄底，只买强者。` });
+              ? `半山腰——不是他的买点（他在等放量创新高），更不是抄底对象：他的操作清单里没有"低吸"这个动作。`
+              : `距高点 ${pc(p.offHighPct)}% 的深度回撤——他的体系里这是绝对禁区：他从不抄底，只买强者，弱者再便宜也不看。` });
         }
-        if (p.volAnnual !== null) pts.push({ k: 'fact', t: `年化波动 ${p.volAnnual.toFixed(0)}%${p.volAnnual > 50 ? '——高波动品种，他的 -7~8% 止损纪律在这种票上是保命绳' : ''}。` });
+        if (p.volAnnual !== null && p.volAnnual > 50) pts.push({ k: 'fact', t: `年化波动 ${p.volAnnual.toFixed(0)}%——这种票上，-7~8% 止损不是纪律是保命绳：波动越大，止损越要机械。` });
       } else {
-        pts.push({ k: 'view', t: `他的体系全部建立在价格与成交量上：买接近一年新高的强者，跌 7-8% 无条件止损，绝不摊低成本。` });
+        pts.push({ k: 'view', t: `他的体系全部建立在价格与成交量上：买接近一年新高的强者，跌 7-8% 无条件离场，绝不摊低成本。` });
       }
-      return { headline: '强者恒强：买创新高，不抄底；止损如呼吸，不商量。', points: pts };
+      let head = '半山腰既不是买点也不是抄底点——他的答案是等。';
+      if (p && p.offHighPct > -5 && p.aboveMA60) head = '贴近新高 + 趋势向上：他的体系里唯一可操作的区域。';
+      else if (p && p.offHighPct < -15) head = `深度回撤 ${pc(p.offHighPct)}%：他的铁律是绝不抄底。`;
+      return { headline: head, points: pts };
     },
 
     livermore(t, p) {
       const pts = [];
-      if (p && p.aboveMA60 !== null && p.aboveMA20 !== null) {
-        const state = p.aboveMA20 && p.aboveMA60 ? '多头排列（20 日与 60 日线都在脚下）——顺趋势者的区域'
-          : !p.aboveMA20 && !p.aboveMA60 ? '空头排列——他的规则里这里只属于做空者或空仓者'
-            : '均线纠缠——趋势不明，他的做法是不做';
-        pts.push({ k: 'fact', t: `趋势状态：${state}。` });
+      let structure = null;
+      if (p && p.aboveMA20 !== null && p.aboveMA60 !== null) {
+        structure = p.aboveMA20 && p.aboveMA60 ? 'bull' : (!p.aboveMA20 && !p.aboveMA60) ? 'bear' : 'mix';
+        pts.push({ k: 'fact', t: `现价位于 20 日线${p.aboveMA20 ? '上' : '下'}方 ${Math.abs(p.ma20OffPct).toFixed(1)}%、60 日线${p.aboveMA60 ? '上' : '下'}方 ${Math.abs(p.ma60OffPct).toFixed(1)}%——${structure === 'bull' ? '多头排列' : structure === 'bear' ? '空头排列' : '均线纠缠'}。` });
+        pts.push({ k: 'view', t: structure === 'bull'
+          ? `趋势在他的定义里成立：他要的不是追价，而是等回撤到"关键点"（前突破位）再出手，止损单进场前已挂好。`
+          : structure === 'bear'
+            ? `他的规则里，空头排列只属于做空者与空仓者——做多者此刻的正确动作是等待，不是预测。`
+            : `均线纠缠 = 趋势不明 = 他休息。他一生的大亏，大多来自"没有趋势也要交易"的日子。` });
       }
-      pts.push({ k: 'view', t: `他只在"关键点"出手（突破确认位），且进场前止损单已经挂好。对他而言：没有止损位的交易等于没有交易。` });
-      if (p && p.volAnnual !== null && p.volAnnual > 50) pts.push({ k: 'fact', t: `年化波动 ${p.volAnnual.toFixed(0)}%——他一生的教训：这样的品种，仓位就是生命线，四次破产都源于重仓硬扛。` });
-      pts.push({ k: 'view', t: `他的另一条铁律适合此刻贴在屏幕上：市场永远在，机会永远有；亏钱最快的方式，是急着把钱赚回来。` });
-      return { headline: '趋势一旦形成不会轻易改变；错了立刻走，对了拿得住。', points: pts };
+      if (p && p.volAnnual !== null && p.volAnnual > 50) pts.push({ k: 'fact', t: `年化波动 ${p.volAnnual.toFixed(0)}%：他四次破产换来的教训——这种品种上仓位是唯一的生命线，判断再对也救不了重仓硬扛。` });
+      if (!pts.length) pts.push({ k: 'view', t: `他只在关键点出手，且进场前止损单已挂好：没有止损位的交易，等于没有交易。` });
+      const head = structure === 'bull' ? '趋势成立：等回撤到关键点，不追价。'
+        : structure === 'bear' ? '空头排列：他的答案只有做空与空仓。'
+        : structure === 'mix' ? '无趋势即无交易——他此刻在休息。'
+        : '关键点之外不下单，止损单先于仓位。';
+      return { headline: head, points: pts };
     },
   };
 
@@ -264,6 +311,14 @@ const Masters = (() => {
       vol = Math.sqrt(varr) * Math.sqrt(243) * 100;
     }
 
+    // 年内最大回撤 / 高点距今交易日 / 20 日动量：大师分析的具体数字弹药
+    let peak = win[0], maxDD = 0, hiIdx = 0;
+    for (let i = 0; i < win.length; i++) {
+      if (win[i] > peak) { peak = win[i]; hiIdx = i; }
+      const dd = win[i] / peak - 1;
+      if (dd < maxDD) maxDD = dd;
+    }
+
     const ma = (n) => {
       if (closes.length < n) return null;
       const arr = closes.slice(-n);
@@ -276,7 +331,12 @@ const Masters = (() => {
       offHighPct: (last / high - 1) * 100,
       offLowPct: (last / low - 1) * 100,
       volAnnual: vol,
+      maxDDPct: maxDD * 100,                       // 窗口内最大峰谷回撤（≤0）
+      barsSinceHigh: win.length - 1 - hiIdx,       // 距 52 周高点过了多少个交易日
+      mom20Pct: closes.length > 20 ? (last / closes[closes.length - 21] - 1) * 100 : null,
       ma20: ma(20), ma60: ma(60),
+      ma20OffPct: ma(20) !== null ? (last / ma(20) - 1) * 100 : null,
+      ma60OffPct: ma(60) !== null ? (last / ma(60) - 1) * 100 : null,
       aboveMA20: ma(20) !== null ? last > ma(20) : null,
       aboveMA60: ma(60) !== null ? last > ma(60) : null,
       high52w: high, low52w: low,
