@@ -369,9 +369,10 @@
     if (animate) clearStagger(el.cardWall);
   }
 
-  /* ---- hero：一屏唯一的大数字（上证 / 恒指 / 标普 / BTC，带市场旗标）---- */
+  /* ---- hero：一屏唯一的大数字（上证 / 恒指 / 标普 / BTC，带市场旗标）----
+     BTC 不给旗标：加密走自身 logo，再叠 coin 旗会出现两个 ₿（用户反馈） */
   const HERO_KEYS = ['sh000001', 'hkHSI', 'usINX', 'BTCUSDT'];
-  const HERO_FLAG = { 'sh000001': 'cn', 'hkHSI': 'hk', 'usINX': 'us', 'BTCUSDT': 'coin' };
+  const HERO_FLAG = { 'sh000001': 'cn', 'hkHSI': 'hk', 'usINX': 'us' };
   function renderHero() {
     const box = el.heroStrip;
     if (!box) return;
