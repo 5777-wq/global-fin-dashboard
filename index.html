@@ -18,7 +18,7 @@ setTimeout(function () {
   if (s && s.parentNode) s.parentNode.removeChild(s);
 }, 2600);
 </script>
-<link rel="stylesheet" href="css/style.css?v=20260909">
+<link rel="stylesheet" href="css/style.css?v=20260909b">
 </head>
 <body data-updown="red">
 
@@ -45,8 +45,8 @@ setTimeout(function () {
     <button class="tab" data-tab="fxmacro" role="tab" aria-selected="false" aria-controls="view-market">外汇宏观</button>
     <button class="tab" data-tab="mood" role="tab" aria-selected="false" aria-controls="view-mood">情绪</button>
     <button class="tab" data-tab="news" role="tab" aria-selected="false" aria-controls="view-news">新闻</button>
+    <button class="tab" data-tab="voices" role="tab" aria-selected="false" aria-controls="view-voices">喊单</button>
     <button class="tab" data-tab="chain" role="tab" aria-selected="false" aria-controls="view-chain">产业链</button>
-    <button class="tab" data-tab="report" role="tab" aria-selected="false" aria-controls="view-report">研报</button>
     <button class="tab" data-tab="watch" role="tab" aria-selected="false" aria-controls="view-watch">自选</button>
   </nav>
   <div class="topbar-actions">
@@ -77,6 +77,7 @@ setTimeout(function () {
       <p class="page-sub" id="marketSub">加载中…</p>
     </div>
     <div class="hero" id="heroStrip" role="group" aria-label="关键指数"></div>
+    <div class="globe-bar" id="globeBar" aria-label="全球指数"><span class="gcell num">全球指数加载中…</span></div>
 
     <details class="selftest" id="selftest">
       <summary>数据源自检</summary>
@@ -118,17 +119,27 @@ setTimeout(function () {
       <button class="star" id="detailStar" title="收藏">☆</button>
     </div>
     <div class="detail-stats num" id="detailStats"></div>
-    <div class="heat-toolbar">
-      <button class="pill active" data-period="min">分时</button>
-      <button class="pill" data-period="day">日K</button>
-      <button class="pill" data-period="week">周K</button>
-      <button class="pill active" id="maToggle">MA5 / MA20</button>
-    </div>
+      <div class="heat-toolbar">
+        <button class="pill" data-period="min">分时</button>
+        <button class="pill active" data-period="day">日K</button>
+        <button class="pill" data-period="week">周K</button>
+        <button class="pill" data-period="month">月K</button>
+        <span class="ma-wrap">
+          <button class="pill active" id="maToggle" title="选择叠加的均线">均线 ▾</button>
+          <span class="ma-menu" id="maMenu" hidden>
+            <label><input type="checkbox" data-maopt="ma5"> MA5 <i style="background:#D97757"></i></label>
+            <label><input type="checkbox" data-maopt="ma10"> MA10 <i style="background:#5b8def"></i></label>
+            <label><input type="checkbox" data-maopt="ma20"> MA20 <i style="background:#3fae72"></i></label>
+            <label><input type="checkbox" data-maopt="ma60"> MA60 <i style="background:#b06ad4"></i></label>
+            <label><input type="checkbox" data-maopt="ema12"> EMA12 <i style="background:#e0a83c"></i></label>
+            <label><input type="checkbox" data-maopt="ema26"> EMA26 <i style="background:#4db6ac"></i></label>
+          </span>
+        </span>
+      </div>
     <div class="chart-box" id="chartBox">
       <div id="klineChart"></div>
     </div>
     <div class="section mt32" id="detailInsight"></div>
-    <div class="section mt32" id="detailReports"></div>
   </section>
 
   <!-- ========== 新闻 ========== -->
@@ -141,7 +152,15 @@ setTimeout(function () {
       <button class="pill" data-newsmkt="global">港美</button>
       <button class="pill" data-newsmkt="crypto">加密</button>
     </div>
+    <div class="heat-toolbar news-catbar" id="newsCatBar"></div>
     <div class="news-list" id="newsList"></div>
+  </section>
+
+  <!-- ========== 大V喊单（新闻聚合口径） ========== -->
+  <section class="view tab-panel" id="view-voices" role="tabpanel" tabindex="-1" aria-label="voices">
+    <h1 class="page-title">大V喊单</h1>
+    <p class="page-sub" id="voicesSub">马斯克 · 特朗普 · 黄仁勋 · 奥尔特曼 等的公开发言动向</p>
+    <div class="news-list" id="voicesList"></div>
   </section>
 
   <!-- ========== 市场宽度 / 情绪 ========== -->
@@ -191,13 +210,6 @@ setTimeout(function () {
     <div id="chainList"></div>
   </section>
 
-  <!-- ========== 研报 ========== -->
-  <section class="view tab-panel" id="view-report" role="tabpanel" tabindex="-1" aria-label="report">
-    <h1 class="page-title">机构研报</h1>
-    <p class="page-sub" id="reportSub">—</p>
-    <div class="report-list" id="reportList"></div>
-  </section>
-
   <!-- ========== 自选 ========== -->
   <section class="view tab-panel" id="view-watch" role="tabpanel" tabindex="-1" aria-label="watch">
     <h1 class="page-title">我的自选</h1>
@@ -205,11 +217,14 @@ setTimeout(function () {
     <div id="watchWall"></div>
   </section>
 
+  <!-- ========== 世界经济仪表盘（外汇宏观 tab 时显示） ========== -->
+  <div class="macro-wrap" id="macroBox" hidden></div>
+
   <footer class="footer">
     <div class="status-line" id="sourceStatus"></div>
     <div>
-      数据来源：腾讯财经（A股/港股/美股/全球指数、K线、分时）· 东方财富（A股全市场、外汇、大宗商品、国债收益率、搜索、研报）·
-      币安（加密行情与K线）· 新浪财经（滚动新闻）。行情为第三方公开接口数据，可能延迟，仅供参考，不构成投资建议。
+      数据来源：腾讯财经（A股/港股/美股/全球指数、K线、分时）· 东方财富（A股全市场、外汇、大宗商品、国债收益率、搜索、板块榜）·
+      币安（加密行情与K线）· 新浪财经（滚动新闻）· 世界银行（宏观年度指标，免密钥）。行情为第三方公开接口数据，可能延迟，仅供参考，不构成投资建议。
     </div>
     <div id="updatedLine" style="margin-top:6px"></div>
   </footer>
@@ -253,25 +268,26 @@ setTimeout(function () {
 
 <!-- 图表库本地化（v4.2.3 锁版）：原 unpkg latest 不锁版本，上游发版或 CDN 不可达时详情页全废 -->
 <script src="lib/lightweight-charts.standalone.production.js?v=4.2.3"></script>
-<script src="js/utils.js?v=20260909"></script>
-<script src="js/store.js?v=20260909"></script>
-<script src="js/proxy.js?v=20260909"></script>
-<script src="js/data/universe.js?v=20260909"></script>
-<script src="js/data/industry-chains.js?v=20260909"></script>
-<script src="js/data/masters.js?v=20260909"></script>
-<script src="js/data/explain.js?v=20260909"></script>
-<script src="js/sources/tencent.js?v=20260909"></script>
-<script src="js/sources/sina.js?v=20260909"></script>
-<script src="js/sources/eastmoney.js?v=20260909"></script>
-<script src="js/sources/okx.js?v=20260909"></script>
-<script src="js/sources/binance.js?v=20260909"></script>
-<script src="js/sources/fred.js?v=20260909"></script>
-<script src="js/sources/news.js?v=20260909"></script>
-<script src="js/sources/report.js?v=20260909"></script>
-<script src="js/breadth.js?v=20260909"></script>
-<script src="js/sessions.js?v=20260909"></script>
-<script src="js/treemap.js?v=20260909"></script>
-<script src="js/charts.js?v=20260909"></script>
-<script src="js/app.js?v=20260909"></script>
+<script src="js/utils.js?v=20260909b"></script>
+<script src="js/store.js?v=20260909b"></script>
+<script src="js/proxy.js?v=20260909b"></script>
+<script src="js/data/universe.js?v=20260909b"></script>
+<script src="js/data/industry-chains.js?v=20260909b"></script>
+<script src="js/data/explain.js?v=20260909b"></script>
+<script src="js/technical.js?v=20260909b"></script>
+<script src="js/flags.js?v=20260909b"></script>
+<script src="js/sources/tencent.js?v=20260909b"></script>
+<script src="js/sources/sina.js?v=20260909b"></script>
+<script src="js/sources/eastmoney.js?v=20260909b"></script>
+<script src="js/sources/okx.js?v=20260909b"></script>
+<script src="js/sources/binance.js?v=20260909b"></script>
+<script src="js/sources/fred.js?v=20260909b"></script>
+<script src="js/sources/news.js?v=20260909b"></script>
+<script src="js/sources/worldbank.js?v=20260909b"></script>
+<script src="js/breadth.js?v=20260909b"></script>
+<script src="js/sessions.js?v=20260909b"></script>
+<script src="js/treemap.js?v=20260909b"></script>
+<script src="js/charts.js?v=20260909b"></script>
+<script src="js/app.js?v=20260909b"></script>
 </body>
 </html>

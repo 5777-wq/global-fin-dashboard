@@ -1,5 +1,6 @@
-/* charts.js —— lightweight-charts 封装（K线 + 成交量副图 + MA5/MA20 + 分时）
-   兼容 v3/v4（addCandlestickSeries）与 v5（addSeries(CandlestickSeries)）两套 API。 */
+/* charts.js —— lightweight-charts 封装（K线 + 成交量副图 + 可配置均线组 + 分时）
+   兼容 v3/v4（addCandlestickSeries）与 v5（addSeries(CandlestickSeries)）两套 API。
+   均线：MA5/10/20/60 + EMA12/26 六条槽位，setMAVisible(配置对象) 按 key 开关（详情页存 localStorage）。 */
 
 const Charts = (() => {
   const LWC = () => window.LightweightCharts;
@@ -56,16 +57,31 @@ const Charts = (() => {
     });
     chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 }, visible: false });
 
-    const ma5 = addSeries(chart, 'Line', { color: accent, lineWidth: 1, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false });
-    const ma20 = addSeries(chart, 'Line', { color: '#5b8def', lineWidth: 1, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false });
+    // overlay 槽：MA5/10/20/60 + EMA12/26，键与颜色一一对应（编辑部配色：签名橙只给 MA5）
+    const OVERLAYS = {
+      ma5:   { color: accent, type: 'ma', n: 5 },
+      ma10:  { color: '#5b8def', type: 'ma', n: 10 },
+      ma20:  { color: '#3fae72', type: 'ma', n: 20 },
+      ma60:  { color: '#b06ad4', type: 'ma', n: 60 },
+      ema12: { color: '#e0a83c', type: 'ema', n: 12 },
+      ema26: { color: '#4db6ac', type: 'ema', n: 26 },
+    };
+    const lineSeries = {};
+    Object.keys(OVERLAYS).forEach(key => {
+      lineSeries[key] = addSeries(chart, 'Line', {
+        color: OVERLAYS[key].color, lineWidth: 1,
+        lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+      });
+    });
 
     let lastKlines = [];
-    let maVisible = true;
+    // 默认开启：MA5 + MA20 + EMA26（用户可在详情页均线菜单里自定义，存 localStorage）
+    let maCfg = { ma5: true, ma10: false, ma20: true, ma60: false, ema12: false, ema26: true };
 
     function applyTheme() {
       const c = themeColors();
       candle.applyOptions({ upColor: c.up, downColor: c.down, wickUpColor: c.up, wickDownColor: c.down });
-      ma5.applyOptions({ color: c.accent });
+      Object.keys(OVERLAYS).forEach(key => lineSeries[key].applyOptions({ color: OVERLAYS[key].color }));
       if (lastKlines.length) setVolume(lastKlines, c);
     }
 
@@ -89,15 +105,22 @@ const Charts = (() => {
     }
 
     function renderMA() {
-      if (!maVisible || lastKlines.length < 5) {
-        ma5.setData([]); ma20.setData([]);
-        return;
-      }
-      ma5.setData(calcMA(lastKlines, 5).filter(p => Number.isFinite(p.value)));
-      ma20.setData(calcMA(lastKlines, 20).filter(p => Number.isFinite(p.value)));
+      const closes = lastKlines.map(k => k.close);
+      Object.keys(OVERLAYS).forEach(key => {
+        const o = OVERLAYS[key];
+        if (!maCfg[key] || lastKlines.length < o.n) { lineSeries[key].setData([]); return; }
+        const seq = o.type === 'ema' ? emaSeries(closes, o.n) : calcMA(lastKlines, o.n);
+        lineSeries[key].setData(seq.filter(p => p.value !== null && Number.isFinite(p.value)));
+      });
     }
 
-    function setMAVisible(v) { maVisible = v; renderMA(); }
+    function setMAVisible(v) {
+      // 兼容旧布尔调用：true/false → 全开/全关；传对象则按 key 开关
+      maCfg = typeof v === 'object' && v !== null
+        ? Object.assign({}, maCfg, v)
+        : Object.keys(OVERLAYS).reduce((o, k) => (o[k] = !!v, o), {});
+      renderMA();
+    }
 
     return {
       chart, candle, vol, setData, applyTheme, setMAVisible,
@@ -149,7 +172,7 @@ const Charts = (() => {
     };
   }
 
-  // MA 均线（自算）
+  // MA 均线序列（自算）；emaSeries 复用 Technical（加载序在其后，惰性取用）
   function calcMA(klines, n) {
     const out = [];
     let sum = 0;
@@ -164,7 +187,13 @@ const Charts = (() => {
     return out;
   }
 
-  return { createKline, createTrend, calcMA, themeColors };
+  function emaSeries(closes, n) {
+    const T = window.Technical;
+    if (T) return T.emaSeries(closes, n).map(v => v === null ? null : +v.toFixed(3));
+    return closes.map(() => null);
+  }
+
+  return { createKline, createTrend, calcMA, emaSeries, themeColors };
 })();
 
 window.Charts = Charts;

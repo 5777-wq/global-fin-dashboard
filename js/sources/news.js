@@ -106,7 +106,62 @@ const NewsSource = (() => {
     return keys.some(k => text.toUpperCase().includes(k.toUpperCase()));
   }
 
-  return { getNews, matchMarket, fromSina, fromEastmoney };
+  // 产业链板块分类（与 app.js 概念榜的 CHAIN_HINTS 同一图谱口径，文案偏新闻）
+  const CHAIN_KW = {
+    nev: ['新能源车', '汽车整车', '汽车', '充电桩', '动力电池', '锂电', '锂矿', '固态电池', '智能驾驶', '自动驾驶', '蔚来', '理想汽车', '小鹏'],
+    semicon: ['半导体', '芯片', '光刻', '集成电路', '晶圆', '存储', '封测', '中芯'],
+    ai: ['算力', '人工智能', 'AIGC', '大模型', 'ChatGPT', 'OpenAI', '光模块', '数据中心', '英伟达', 'AI'],
+    pv: ['光伏', '太阳能', '钙钛矿', '硅料', '硅片', '组件', '逆变器'],
+    consumer: ['消费电子', '苹果', 'iPhone', '手机', '面板', 'OLED', '折叠屏', '耳机', 'Vision'],
+    pharma: ['创新药', '医药', 'CXO', 'CRO', '疫苗', '医疗器械', '中药', '减肥药', 'GLP'],
+    defense: ['军工', '航天', '卫星', '大飞机', '船舶', '军工', '无人机', '核聚变'],
+    robot: ['机器人', '减速器', '人形', '伺服', '执行器'],
+    storage: ['储能', '虚拟电厂', '特高压', '电网', '电力', '核电'],
+    xinchuang: ['信创', '国产软件', '操作系统', '数据库', '网络安全', '华为', '鸿蒙', '国资云', '数据要素'],
+    macro: ['美联储', '联储', '央行', '降息', '加息', '通胀', 'CPI', 'PPI', 'GDP', '非农', '关税', '国债', '汇率', 'PMI', 'LPR', '社融'],
+  };
+  // 板块分类：返回 {id, hit}；命中多板块时取关键词最长者（更具体）
+  function classify(item) {
+    const text = (item.title + ' ' + (item.summary || '')).toUpperCase();
+    let best = null;
+    Object.keys(CHAIN_KW).forEach(id => {
+      CHAIN_KW[id].forEach(kw => {
+        if (text.includes(kw.toUpperCase()) && (!best || kw.length > best.hit.length)) best = { id, hit: kw };
+      });
+    });
+    return best ? best.id : null;
+  }
+
+  // 大V喊单名单：推特爱喊单的那批人（新闻聚合口径——免费无推特 API，用"关于他们的新闻"替代原始推文）
+  const VOICES = [
+    { id: 'musk', name: '马斯克', kws: ['马斯克', 'Musk', 'SpaceX', '星链', '星舰'], flag: 'us' },
+    { id: 'trump', name: '特朗普', kws: ['特朗普', 'Trump', '白宫', ' Truth Social'], flag: 'us' },
+    { id: 'huang', name: '黄仁勋', kws: ['黄仁勋', '英伟达', 'NVIDIA', 'Jensen Huang'], flag: 'us' },
+    { id: 'altman', name: '奥尔特曼', kws: ['奥尔特曼', '奥特曼', 'Altman', 'OpenAI'], flag: 'us' },
+    { id: 'powell', name: '鲍威尔', kws: ['鲍威尔', 'Powell', '美联储主席'], flag: 'us' },
+    { id: 'cook', name: '库克', kws: ['库克', 'Tim Cook', '苹果CEO'], flag: 'us' },
+    { id: 'bezos', name: '贝索斯', kws: ['贝索斯', 'Bezos', '亚马逊创始人'], flag: 'us' },
+    { id: 'zuck', name: '扎克伯格', kws: ['扎克伯格', 'Zuckerberg', 'Meta CEO'], flag: 'us' },
+    { id: 'yellen', name: '耶伦', kws: ['耶伦', 'Yellen', '美财长'], flag: 'us' },
+    { id: 'lagarde', name: '拉加德', kws: ['拉加德', 'Lagarde', '欧洲央行行长'], flag: 'eu' },
+  ];
+  // 命中名单：一条新闻可能涉及多人（如"马斯克回应特朗普"）
+  function matchVoices(item) {
+    const text = item.title + ' ' + (item.summary || '');
+    return VOICES.filter(v => v.kws.some(k => text.toUpperCase().includes(k.toUpperCase())));
+  }
+
+  // 喊单页用更大新闻池（三频道并发），复用同样的解析与去重
+  async function getNewsPool(size = 60) {
+    const jobs = [
+      fromSina(size).catch(() => []),
+      fromEastmoney(size).catch(() => []),
+    ];
+    const parts = await Promise.all(jobs);
+    return dedupe(parts.flat());
+  }
+
+  return { getNews, matchMarket, classify, matchVoices, getNewsPool, fromSina, fromEastmoney, VOICES, CHAIN_KW };
 })();
 
 window.NewsSource = NewsSource;

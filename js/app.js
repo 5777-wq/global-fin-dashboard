@@ -32,11 +32,12 @@
     heatFetchedAt: 0,         // 全市场最近一次成功抓取时间（情绪页保活判断用）
     news: [],
     newsMkt: 'all',
+    newsCat: 'all',            // 新闻产业链板块过滤（链 id / macro / all）
+    watchSort: 'default',      // 自选排序：default | pctDesc | pctAsc
     newsVia: null,
     newsCachedAt: null,
     newsLoadedAt: 0,
     reports: [],
-    reportVia: null,
     chainQuotes: new Map(),
     watchQuotes: new Map(),   // 自选里"轮询全集之外"的标的行情（自选孤岛修复）
     openLinks: new Set(),
@@ -49,8 +50,8 @@
     detail: null,             // { symbol, name, code, market, secid, tencent, binance }
     chartGen: 0,              // 图表请求代号（防慢响应覆盖新图）
     searchGen: 0,             // 搜索请求代号（同理，防旧关键词结果覆盖新输入）
-    detailPeriod: 'min',
-    detailMA: true,
+    detailPeriod: 'day',       // 用户要求：默认打开日K
+    detailMACfg: null,         // 均线配置 {ma5,ma10,ma20,ma60,ema12,ema26}，init 时从 localStorage 读
     chart: null,
     chartKind: null,
     searchSel: -1,
@@ -59,6 +60,7 @@
     newsFilterKey: null,      // 上次新闻渲染的过滤键（增量插入判断用）
     boardItems: [], boardLoadedAt: 0, boardVia: null,
     boardOpenBk: null, boardStocks: [], boardGen: 0,
+    voices: null, voicesAt: 0, voicesGen: 0, globeQuotes: null,
     lastUpdate: null,
     timers: {},
     stopped: false,
@@ -69,13 +71,14 @@
   const DOM_IDS = ['tabs', 'cardWall', 'watchWall', 'marketSub', 'selftestOut', 'selftest',
     'heatCanvas', 'heatTip', 'heatWrap', 'heatSection', 'heatSub', 'heatSizeToggle',
     'heatReset', 'heatZoom', 'heatHint',
-    'newsList', 'newsSub', 'chainList', 'chainSub', 'reportList', 'reportSub',
+    'newsList', 'newsSub', 'chainList', 'chainSub',
     'boardStrip', 'boardVia', 'boardDrawer',
     'moodSub', 'moodScore', 'moodBand', 'moodFill', 'breadthGrid', 'distWrap', 'distSub', 'moodSpark', 'heroStrip', 'moodCrypto',
     'searchInput', 'searchResults', 'settingsBtn', 'settingsModal', 'settingsClose',
     'segUpdown', 'segRefresh', 'swDegraded', 'sourceStatus', 'updatedLine',
     'detailName', 'detailCode', 'detailPrice', 'detailChg', 'detailStar', 'detailStats',
-    'detailBack', 'klineChart', 'chartBox', 'detailReports', 'detailInsight', 'maToggle'];
+    'detailBack', 'klineChart', 'chartBox', 'detailInsight', 'maToggle',
+    'globeBar', 'macroBox', 'voicesList', 'voicesSub', 'newsCatBar'];
 
   const pctClass = (p) => (p === null || p === undefined || isNaN(p)) ? 'flat' : (p > 0 ? 'up' : p < 0 ? 'down' : 'flat');
   // 缓存 matchMedia 结果：渲染期每张卡片查 2 次，整墙渲染就是上百次 matchMedia 调用
@@ -366,19 +369,21 @@
     if (animate) clearStagger(el.cardWall);
   }
 
-  /* ---- hero：一屏唯一的大数字（上证 / 恒指 / 标普 / BTC）---- */
+  /* ---- hero：一屏唯一的大数字（上证 / 恒指 / 标普 / BTC，带市场旗标）---- */
   const HERO_KEYS = ['sh000001', 'hkHSI', 'usINX', 'BTCUSDT'];
+  const HERO_FLAG = { 'sh000001': 'cn', 'hkHSI': 'hk', 'usINX': 'us', 'BTCUSDT': 'coin' };
   function renderHero() {
     const box = el.heroStrip;
     if (!box) return;
     const cells = HERO_KEYS.map(sym => {
       const q = state.quotes.get(sym);
+      const flag = window.Flags ? window.Flags.flag(HERO_FLAG[sym]) : '';
       if (!q) return `<div class="hero-cell"><div class="hero-label">${sym}</div><div class="hero-value">——</div><div class="hero-chg">等待数据</div></div>`;
       const digits = U.priceDigits(q.price);
       const cls = pctClass(q.changePct);
       const code = sym.startsWith('EM:') ? '' : escapeHTML(q.code || sym);
       return `<div class="hero-cell" data-symbol="${escapeHTML(sym)}" tabindex="0" role="button" aria-label="${escapeHTML(q.name)} 详情">
-        <div class="hero-label"><span>${logoImg(q, 'hero-logo-img')}${escapeHTML(q.name)}</span><span>${code}</span></div>
+        <div class="hero-label"><span>${flag}${logoImg(q, 'hero-logo-img')}${escapeHTML(q.name)}</span><span>${code}</span></div>
         <div class="hero-value" data-price="${escapeHTML(sym)}">${fmt(q.price, digits)}</div>
         <div class="hero-chg ${cls}"><span data-hero-chg>${fmtChg(q.change, digits)}  ${fmtPct(q.changePct)}</span></div>
       </div>`;
@@ -508,6 +513,9 @@
       }
       return q || { symbol: it.symbol, name: it.name, code: it.symbol, market: it.market, price: null, change: null, changePct: null };
     });
+    // 排序（TradingView 自选表习惯：涨跌幅榜最常用）；默认保持收藏顺序
+    if (state.watchSort === 'pctDesc') quotes.sort((a, b) => (b.changePct ?? -999) - (a.changePct ?? -999));
+    if (state.watchSort === 'pctAsc') quotes.sort((a, b) => (a.changePct ?? 999) - (b.changePct ?? 999));
     // 组合概览：等权平均涨跌 + 内部涨跌家数（有数据的才算，防止 null 拉低均值）
     const valid = quotes.filter(q => q.changePct !== null && q.changePct !== undefined && !isNaN(q.changePct));
     let summary = '';
@@ -522,7 +530,10 @@
         <span class="ws-dim">等权平均 · ${valid.length}/${quotes.length} 只有行情</span>
       </div>`;
     }
-    el.watchWall.innerHTML = summary +
+    const sorts = [['default', '收藏顺序'], ['pctDesc', '涨幅↓'], ['pctAsc', '涨幅↑']];
+    const sortBar = `<div class="watch-sortbar">${sorts.map(([k, label]) =>
+      `<button class="pill${state.watchSort === k ? ' active' : ''}" data-wsort="${k}">${label}</button>`).join('')}</div>`;
+    el.watchWall.innerHTML = sortBar + summary +
       `<div class="card-grid">${quotes.map((q, i) => rowHTML(q, !noAnim, i)).join('')}</div>`;
     if (!noAnim) clearStagger(el.watchWall);
   }
@@ -894,72 +905,57 @@
     requestAnimationFrame(step);
   }
 
-  /* ==================== 科普层：标的解释 + 大师视角 ==================== */
+  /* ==================== 技术面板块（替换原"大师视角"） ==================== */
 
-  // 打开详情时与研报并行取一次日K → 算画像 → 渲染
-  async function loadDetailInsight() {
+  // 打开详情时与图表并行取一次日K → Technical.analyze → 渲染指标卡
+  async function loadTechnical() {
     const t = state.detail;
     const box = el.detailInsight;
     if (!t || !box) return;
     box.innerHTML = '';
 
     const ex = window.Explain.of(t);
-    // 加密没有腾讯/东财 secid，画像用币安日K
+    // 加密没有腾讯/东财 secid，画像用币安日K（klineFor 有同参去重，与图表并行时只发一次）
     const klines = t.market === 'crypto'
       ? await window.BinanceSource.getKline(t.binance || t.code, '1d', 320)
       : await klineFor(t, 'day');
     // 竞态守卫：等待期间用户可能已切到别的标的
     if (state.detail !== t || !box) return;
-    const p = window.Masters.computeProfile(klines);
+    const an = window.Technical.analyze(klines);
 
     const what = ex ? `<div class="explain-box">
         <p class="explain-what"><span class="explain-kind">这是什么</span>${escapeHTML(ex.text)}</p>
       </div>` : '';
 
-    const profile = p ? `<div class="profile-grid">
-        <div class="profile-cell">
-          <div class="profile-label">近一年涨跌</div>
-          <div class="profile-value num ${pctClass(p.yearChangePct)}">${fmtPct(p.yearChangePct)}</div>
-          <div class="profile-hint">过去表现不代表未来</div>
-        </div>
-        <div class="profile-cell">
-          <div class="profile-label">距一年最高点</div>
-          <div class="profile-value num ${pctClass(p.offHighPct)}">${fmtPct(p.offHighPct)}</div>
-          <div class="profile-hint">一年低点以来 ${fmtPct(p.offLowPct)}</div>
-        </div>
-        <div class="profile-cell">
-          <div class="profile-label">年化波动率</div>
-          <div class="profile-value num">${p.volAnnual === null ? '--' : p.volAnnual.toFixed(0) + '%'}</div>
-          <div class="profile-hint">日收益标准差 × √243</div>
-        </div>
-        <div class="profile-cell">
-          <div class="profile-label">趋势位置</div>
-          <div class="profile-value num ${p.aboveMA60 ? 'up' : 'down'}">${p.aboveMA60 === null ? '--' : p.aboveMA60 ? '60日线上' : '60日线下'}</div>
-          <div class="profile-hint">MA20 ${fmt(p.ma20)} / MA60 ${fmt(p.ma60)}</div>
-        </div>
-      </div>` : '';
+    if (!an) {
+      box.innerHTML = `<div class="section-head">
+          <h2 class="section-title">技术面 · 「${escapeHTML(t.name || t.code || '')}」</h2>
+          <span class="section-sub">日K 数据不足（需要 60 根以上），指标暂无法计算</span>
+        </div>${what}`;
+      return;
+    }
 
-    const masters = window.Masters.analyze(t, p).map(m => `<div class="master-card">
-        <div class="master-head">
-          <span class="master-name">${escapeHTML(m.name)}</span>
-          <span class="master-school">${escapeHTML(m.school)}</span>
-        </div>
-        <div class="master-core">${escapeHTML(m.headline)}</div>
-        <ul class="master-points">${m.points.map(pt => `<li class="mp-${pt.k}">${escapeHTML(pt.t)}</li>`).join('')}</ul>
-        <div class="master-quote">"${escapeHTML(m.quote)}" —— ${escapeHTML(m.name)}（${escapeHTML(m.era)}）</div>
+    // 信号速览：偏多/偏空计票（描述性统计，不是评级）
+    const summary = `<div class="tech-summary">
+        <span class="ts-up num">偏多信号 ${an.bias.up}</span>
+        <span class="ts-dash">·</span>
+        <span class="ts-down num">偏空信号 ${an.bias.down}</span>
+        <span class="ts-dash">·</span>
+        <span class="ts-flat num">中性 ${an.bias.flat}</span>
+        <span class="ts-note">指标间互相矛盾是常态——它们量的是不同维度</span>
+      </div>`;
+
+    const cards = an.signals.map(s => `<div class="tech-card">
+        <div class="tc-head"><span class="tc-tag">${escapeHTML(s.tag)}</span><span class="tc-bias ${s.bias === 'up' ? 'up' : s.bias === 'down' ? 'down' : ''}">${s.bias === 'up' ? '偏多读法' : s.bias === 'down' ? '偏空读法' : '中性事实'}</span></div>
+        <p class="tc-text">${escapeHTML(s.text)}</p>
       </div>`).join('');
 
     box.innerHTML = `<div class="section-head">
-        <h2 class="section-title">小白学院 · 大师们怎么看「${escapeHTML(t.name || t.code || '')}」</h2>
-        <span class="section-sub">针对本标的的具体分析 · 事实用签名色标注 · 不构成投资建议</span>
+        <h2 class="section-title">技术面 · 「${escapeHTML(t.name || t.code || '')}」</h2>
+        <span class="section-sub">基于日K 的常用指标读数 · 只描述事实与常用读法 · 不构成投资建议</span>
       </div>
-      ${what}
-      ${profile}
-      <div class="master-row">${masters}</div>
-      <p class="insight-disclaimer">
-        以上为公开的方法论常识与价格统计，用于学习"不同视角怎么提问"，不推荐任何买卖操作；
-        大师们的共同前提是——先懂生意，再看价格。
-      </p>`;
+      ${summary}${what}
+      <div class="tech-grid">${cards}</div>`;
   }
 
   /* ==================== 详情页 + K线 ==================== */
@@ -976,8 +972,11 @@
     el.detailStats.innerHTML = '';
     document.title = (target.name || target.code || '详情') + ' · GLOBAL FIN';
     updateStar();
+    // 周期按钮 active 与 state 同步（detailPeriod 跨详情保留上次选择）
+    document.querySelectorAll('[data-period]').forEach(b =>
+      b.classList.toggle('active', b.dataset.period === state.detailPeriod));
     // allSettled：任一 loader 抛错不拖垮其余三路，也不再产生 unhandled rejection
-    await Promise.allSettled([refreshDetailQuote(), loadDetailChart(), loadDetailReports(), loadDetailInsight()]);
+    await Promise.allSettled([refreshDetailQuote(), loadDetailChart(), loadTechnical()]);
   }
 
   async function refreshDetailQuote() {
@@ -1036,7 +1035,7 @@
     let kind = period === 'min' ? 'trend' : 'kline';
 
     if (t.market === 'crypto') {
-      const iv = period === 'min' ? '5m' : period === 'week' ? '1w' : '1d';
+      const iv = period === 'min' ? '5m' : period === 'week' ? '1w' : period === 'month' ? '1M' : '1d';
       data = await window.BinanceSource.getKline(t.binance || t.code, iv, period === 'min' ? 288 : 320);
       kind = 'kline';   // 加密 24h 交易，分时用 5 分钟 K 更可读
     } else if (period === 'min') {
@@ -1050,7 +1049,7 @@
         data = await klineFor(t, 'day');
       }
     } else {
-      data = await klineFor(t, period === 'week' ? 'week' : 'day');
+      data = await klineFor(t, period);
     }
 
     if (stale()) return;            // 期间用户又切了周期/退出了详情
@@ -1078,13 +1077,13 @@
       state.chart.setData(data, prev);
     } else {
       state.chart.setData(data);
-      state.chart.setMAVisible(state.detailMA);
+      state.chart.setMAVisible(state.detailMACfg || true);
     }
     // 分时下 MA 无意义（加密的 5 分钟 K 除外），禁用开关以免"看起来坏了"
     if (el.maToggle) el.maToggle.disabled = (kind === 'trend' && t.market !== 'crypto');
   }
 
-  // in-flight 去重：详情页 loadDetailChart 与 loadDetailInsight 并行时会同参请求两次日K，
+  // in-flight 去重：详情页 loadDetailChart 与 loadTechnical 并行时会同参请求两次日K，
   // 以 symbol+period 为 key 共享同一个 Promise，省一半请求
   const klineInflight = new Map();
   function klineFor(t, period) {
@@ -1102,27 +1101,13 @@
       if (d.length) return d;
     }
     if (t.secid) {
-      const d = await window.EastmoneySource.getKline(t.secid, period === 'week' ? 102 : 101);
+      const klt = period === 'week' ? 102 : period === 'month' ? 103 : 101;
+      const d = await window.EastmoneySource.getKline(t.secid, klt);
       if (d.length) return d;
     }
     return [];
   }
 
-  async function loadDetailReports() {
-    const t = state.detail;
-    el.detailReports.innerHTML = '';
-    // 指数不查研报：reportapi 按 6 位代码不分市场匹配，上证指数(000001)会撞出平安银行研报（实测）
-    if (!t || t.market === 'index' || !/^\d{6}$/.test(String(t.code || ''))) return;
-    const { list } = await window.ReportSource.getReports({ code: t.code, pageSize: 12 });
-    if (state.detail !== t) return;   // 竞态守卫：旧标的研报不得写进新详情页
-    if (!list.length) {
-      el.detailReports.innerHTML = '<div class="empty">近 180 天暂无相关研报</div>';
-      return;
-    }
-    el.detailReports.innerHTML = `<div class="section-head">
-        <h2 class="section-title">相关研报</h2><span class="section-sub">${list.length} 篇</span></div>
-      <div class="report-list">${list.map(reportHTML).join('')}</div>`;
-  }
 
   function updateStar() {
     const t = state.detail;
@@ -1149,9 +1134,28 @@
     const isNewsView = state.view === 'news';
     return state.news.filter(it => {
       if (!window.NewsSource.matchMarket(it, state.newsMkt)) return false;
+      if (state.newsCat !== 'all' && window.NewsSource.classify(it) !== state.newsCat) return false;
       if (isNewsView && kw) return (it.title + ' ' + (it.summary || '')).toLowerCase().includes(kw.toLowerCase());
       return true;
     });
+  }
+
+  // 新闻板块 pill：由当前新闻池动态生成（有内容的板块才显示），横滚
+  function renderNewsCatBar() {
+    if (!el.newsCatBar) return;
+    const counts = {};
+    state.news.forEach(it => {
+      const c = window.NewsSource.classify(it);
+      if (c) counts[c] = (counts[c] || 0) + 1;
+    });
+    const chainNames = {};
+    window.INDUSTRY_CHAINS.forEach(c => { chainNames[c.id] = c.name; });
+    chainNames.macro = '宏观';
+    const cats = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    if (!cats.length) { el.newsCatBar.innerHTML = ''; return; }
+    el.newsCatBar.innerHTML = ['all'].concat(cats).map(c =>
+      `<button class="pill${state.newsCat === c ? ' active' : ''}" data-newscat="${c}">${c === 'all' ? '全部板块' : escapeHTML(chainNames[c] || c)}<b class="num">${c === 'all' ? state.news.length : counts[c]}</b></button>`
+    ).join('');
   }
 
   // 新闻时间：绝对时刻（mono），比相对时间"X 分钟前"更符合终端/报刊排版
@@ -1181,6 +1185,7 @@
   };
 
   function renderNews(knownIds) {
+    renderNewsCatBar();
     const list = newsFiltered();
     const viaTxt = state.newsVia === 'cache' ? '缓存 · ' + fmtTime(state.newsCachedAt)
       : state.newsVia === 'eastmoney' ? '备用源 · 东方财富'
@@ -1195,7 +1200,7 @@
 
     // 过滤键没变且是"纯顶部插入"（旧条目无删除、相对顺序不变）→ 只插新条目、
     // 原地刷新时间文案；过滤/搜索变化才整体重建
-    const filterKey = state.newsMkt + '|' + (state.view === 'news' ? (el.searchInput.value || '').trim().toLowerCase() : '');
+    const filterKey = state.newsMkt + '|' + state.newsCat + '|' + (state.view === 'news' ? (el.searchInput.value || '').trim().toLowerCase() : '');
     const domSeq = Array.from(el.newsList.querySelectorAll('.news-item')).map(n => n.dataset.id);
     const newList = list.slice(0, shown);
     const domSet = new Set(domSeq);
@@ -1231,44 +1236,124 @@
     state.newsFilterKey = filterKey;
   }
 
-  /* ==================== 研报 ==================== */
-
-  function reportHTML(r) {
-    const cls = window.ReportSource.ratingClass(r.rating);
-    const dateTxt = r.date ? new Date(r.date).toLocaleDateString('zh-CN') : '--';
-    const inner = `<div class="report-main">
-        <div class="report-title">${escapeHTML(r.title)}</div>
-        <div class="report-meta">
-          <span class="report-stock">${escapeHTML(r.stockName || r.industry || '—')}${r.stockCode ? ' ' + escapeHTML(r.stockCode) : ''}</span>
-          <span>${escapeHTML(r.org)}</span>
-          <span class="num">${dateTxt}</span>
-        </div>
-      </div>
-      ${r.rating ? `<span class="rating ${cls}">${escapeHTML(r.rating)}</span>` : ''}`;
-    return r.url
-      ? `<a class="report-item" href="${escapeHTML(r.url)}" target="_blank" rel="noopener">${inner}</a>`
-      : `<div class="report-item">${inner}</div>`;
+  /* ==================== 大V喊单（新闻聚合口径） ==================== */
+  // 免费无推特 API：用新浪+东财新闻池按人名关键词聚合"关于他们的发言/动作"，诚实标注口径。
+  async function loadVoices() {
+    const gen = ++state.voicesGen;
+    el.voicesList.innerHTML = '<div class="sk sk-row"></div>'.repeat(4);
+    const pool = await window.NewsSource.getNewsPool(60);
+    if (gen !== state.voicesGen) return;
+    state.voices = pool.filter(it => window.NewsSource.matchVoices(it).length);
+    state.voicesAt = Date.now();
+    renderVoices();
   }
 
-  async function loadReports() {
-    const { list, via, cachedAt } = await window.ReportSource.getReports({ code: '*', pageSize: 40 });
-    state.reports = list;
-    state.reportVia = via;
+  function renderVoices() {
+    if (!el.voicesList) return;
+    const list = state.voices || [];
+    el.voicesSub.textContent = list.length
+      ? `${list.length} 条 · 新浪+东财新闻聚合 · 60s 刷新 · 非原始推文`
+      : '新闻池里暂时没有相关发言（口径：新闻聚合，非原始推文）';
     if (!list.length) {
-      el.reportList.innerHTML = '<div class="empty">研报数据源暂不可用，稍后自动重试</div>';
-      el.reportSub.textContent = '数据源维护中';
-      // 源连续失败 → 隐藏研报 tab
-      const tab = el.tabs.querySelector('[data-tab="report"]');
-      if (tab && state.reportFailCount > 2) tab.hidden = true;
-      state.reportFailCount = (state.reportFailCount || 0) + 1;
+      el.voicesList.innerHTML = '<div class="empty">暂无相关新闻</div>';
       return;
     }
-    state.reportFailCount = 0;
-    const tab = el.tabs.querySelector('[data-tab="report"]');
-    if (tab) tab.hidden = false;
-    el.reportSub.textContent = `${list.length} 篇最新研报 · ` +
-      (via === 'cache' ? '缓存 · ' + fmtTime(cachedAt) : '东方财富') + ' · 10 分钟刷新';
-    el.reportList.innerHTML = list.map(reportHTML).join('');
+    el.voicesList.innerHTML = list.slice(0, 60).map(it => {
+      const people = window.NewsSource.matchVoices(it);
+      const badges = people.map(p => `<span class="vb">${window.Flags ? window.Flags.flag(p.flag) : ''}${escapeHTML(p.name)}</span>`).join('');
+      const safeUrl = /^https?:\/\//i.test(it.url || '') ? it.url : '';
+      const tag = safeUrl ? 'a' : 'div';
+      const href = safeUrl ? ` href="${escapeHTML(safeUrl)}" target="_blank" rel="noopener"` : '';
+      return `<${tag} class="news-item voice-item"${href}>
+        <div class="news-meta"><span class="num">${escapeHTML(fmtNewsTime(it.time))}</span><span class="news-src">${escapeHTML(it.source)}</span></div>
+        <div class="voice-badges">${badges}</div>
+        <div class="news-title">${escapeHTML(it.title)}</div>
+        ${it.summary ? `<div class="news-summary">${escapeHTML(it.summary)}</div>` : ''}
+      </${tag}>`;
+    }).join('');
+  }
+
+  /* ==================== 全球指数 ticker（日/德/英/法/韩/印） ==================== */
+  const GLOBAL_IDX = [
+    { secid: '100.N225', flag: 'jp', name: '日经225' },
+    { secid: '100.GDAXI', flag: 'de', name: '德国DAX' },
+    { secid: '100.FTSE', flag: 'gb', name: '英国富时100' },
+    { secid: '100.FCHI', flag: 'fr', name: '法国CAC40' },
+    { secid: '100.KS11', flag: 'kr', name: '韩国KOSPI' },
+    { secid: '100.SENSEX', flag: 'in', name: '印度SENSEX' },
+  ];
+  async function loadGlobe() {
+    const qs = await window.EastmoneySource.getQuotes(GLOBAL_IDX.map(x => x.secid));
+    if (qs.length) {
+      state.globeQuotes = new Map(qs.map(q => [q.secid, q]));
+      renderGlobe();
+    }
+  }
+
+  function renderGlobe() {
+    if (!el.globeBar || !state.globeQuotes) return;
+    const cells = GLOBAL_IDX.map(x => {
+      const q = state.globeQuotes.get(x.secid);
+      if (!q) return '';
+      const cls = pctClass(q.changePct);
+      return `<span class="gcell"><span class="gflag">${window.Flags.flag(x.flag)}</span>` +
+        `<span class="gname">${escapeHTML(x.name)}</span>` +
+        `<span class="gval num">${fmt(q.price, U.priceDigits(q.price))}</span>` +
+        `<span class="gpct num ${cls}">${fmtPct(q.changePct)}</span></span>`;
+    }).join('');
+    el.globeBar.innerHTML = cells || '<span class="gcell num">全球指数暂不可用</span>';
+  }
+
+  /* ==================== 世界经济仪表盘（世界银行，免密钥） ==================== */
+  async function loadMacro() {
+    if (!el.macroBox) return;
+    const c = Cache.raw('wbmacro');
+    if (c && Date.now() - c.at < 86400000) { renderMacro(c.val); return; }   // 年度数据缓存 24h
+    el.macroBox.innerHTML = '<div class="sk sk-row"></div>';
+    const data = await window.WorldBankSource.getMacro();
+    if (data) {
+      Cache.set('wbmacro', data);
+      renderMacro(data);
+    } else if (c) {
+      renderMacro(c.val);
+    } else {
+      el.macroBox.innerHTML = '<div class="empty">世界银行数据暂不可用（年度指标，每日更新）</div>';
+    }
+  }
+
+  function renderMacro(data) {
+    if (!el.macroBox || !data) return;
+    const inds = data.indicators;
+    const keys = Object.keys(inds);
+    const fmtVal = (k, cell) => {
+      if (!cell) return '<span class="num mv">--</span>';
+      const v = cell.v;
+      const txt = k === 'gdp' ? (v / 1e12).toFixed(2) + 'T' : v.toFixed(v >= 100 ? 0 : 1) + '%';
+      return `<span class="num mv">${txt}</span><span class="num my">${escapeHTML(cell.date)}</span>`;
+    };
+    // 色阶：每列按 min-max 归一（GDP 列量纲不同不着色）；通胀/债务/失业越高越"热"用橙阶
+    const colRange = {};
+    keys.forEach(k => {
+      const vs = data.rows.map(r => r.values[k]).filter(Boolean).map(x => x.v);
+      colRange[k] = vs.length ? { min: Math.min(...vs), max: Math.max(...vs) } : null;
+    });
+    const shade = (k, cell) => {
+      const rg = colRange[k];
+      if (k === 'gdp' || !rg || !cell || rg.max === rg.min) return '';
+      const t = (cell.v - rg.min) / (rg.max - rg.min);
+      const warm = ['cpi', 'debt', 'unemp'].includes(k);
+      const alpha = (0.08 + t * 0.30).toFixed(2);
+      return ` style="background:${warm ? `rgba(217,119,87,${alpha})` : `rgba(77,182,172,${alpha})`}"`;
+    };
+    el.macroBox.innerHTML = `<div class="section-head">
+        <h2 class="section-title">世界经济仪表盘</h2>
+        <span class="section-sub">世界银行年度指标（每国最新值）· 免密钥数据源</span>
+      </div>
+      <div class="macro-table">
+        <div class="mrow mhead"><span class="mcell mname">国家 / 指标</span>${keys.map(k => `<span class="mcell" title="${escapeHTML(inds[k].hint)}">${escapeHTML(inds[k].label)}</span>`).join('')}</div>
+        ${data.rows.map(r => `<div class="mrow"><span class="mcell mname">${window.Flags.flag(r.flag)}${escapeHTML(r.name)}</span>${keys.map(k => `<span class="mcell"${shade(k, r.values[k])}>${fmtVal(k, r.values[k])}</span>`).join('')}</div>`).join('')}
+      </div>
+      <p class="insight-disclaimer">GDP 为总量（万亿美元）；增长/通胀/失业为百分比；政府债务与经常账户为占 GDP 比重。缺失 = 世界银行该年尚未发布。</p>`;
   }
 
   /* ==================== 产业链 ==================== */
@@ -1551,7 +1636,7 @@
 
   const VIEW_OF_TAB = {
     all: 'market', cn: 'market', hkus: 'market', crypto: 'market', fxmacro: 'market',
-    mood: 'mood', news: 'news', chain: 'chain', report: 'report', watch: 'watch',
+    mood: 'mood', news: 'news', voices: 'voices', chain: 'chain', watch: 'watch',
   };
 
   function setView(view) {
@@ -1647,6 +1732,10 @@
     el.heatSection.hidden = !['all', 'cn', 'crypto'].includes(tab);
     if (tab === 'crypto') switchHeat('crypto');
     else if (tab === 'cn') switchHeat('cn');
+    // 世界经济仪表盘只在外汇宏观 tab 显示；全球指数条首次进市场视图时加载
+    if (el.macroBox) el.macroBox.hidden = tab !== 'fxmacro';
+    if (tab === 'fxmacro') loadMacro();
+    if (tab === 'all' && !state.globeQuotes) loadGlobe();
     // hidden→visible 时之前所有 drawHeat 都被可见性守卫跳过了，回视图必须补一次，
     // 否则画布停留在旧尺寸/旧布局（黑屏或命中错位）
     if (heatWasHidden && !el.heatSection.hidden) drawHeat();
@@ -1655,8 +1744,13 @@
 
     if (view === 'market') renderCardWall(animate);
     if (view === 'watch') renderWatchlist();
+    if (view === 'voices') {
+      if (!state.voices || Date.now() - (state.voicesAt || 0) > 55000) loadVoices();
+      else renderVoices();
+    }
     if (view === 'news') {
       state.newsMkt = tab === 'news' ? state.newsMkt : 'all';
+      state.newsCat = 'all';
       // 定时器只在新闻视图内轮询，离开后回来若数据过期则立即重拉
       if (!state.news.length) {
         el.newsList.innerHTML = '<div class="sk sk-row"></div>'.repeat(6);
@@ -1677,7 +1771,6 @@
       // 定时器只在 chain 视图内轮询，所以每次进入都主动补一轮，避免展示过期行情
       loadChainQuotes().then(() => patchChains());
     }
-    if (view === 'report' && !state.reports.length) loadReports();
   }
 
   function switchHeat(mode) {
@@ -1828,7 +1921,6 @@
     // 新闻 / 研报 / 产业链行情只在用户处于对应视图时轮询（进入 tab 时 setTab 会立即补一次），
     // 否则 163 只成分股每 10s、新闻每 60s 白跑请求，浪费配额还提高被上游限流的风险
     schedule('news', async () => { if (state.view === 'news') await loadNews(); }, 60000);
-    schedule('reports', async () => { if (state.view === 'report') await loadReports(); }, 600000);
     schedule('chain', async () => {
       if (state.view !== 'chain') return;
       await loadChainQuotes();
@@ -1839,6 +1931,15 @@
     schedule('boards', async () => {
       if (state.view !== 'chain') return;
       await loadBoards();
+    }, 60000);
+    // 大V喊单 60s（仅 voices 视图）；全球指数条 60s（仅市场视图）
+    schedule('voices', async () => {
+      if (state.view !== 'voices') return;
+      await loadVoices();
+    }, 60000);
+    schedule('globe', async () => {
+      if (state.view !== 'market' || !state.globeQuotes) return;
+      await loadGlobe();
     }, 60000);
   }
 
@@ -1890,7 +1991,7 @@
     lines.push('', '数据源：' + window.SourceState.all().map(([k, v]) => k + '=' + (v.ok ? 'ok' : 'fail')).join(' '));
     lines.push('热力图：A股 ' + state.heatItems.cn.length + ' 块 / 加密 ' + state.heatItems.crypto.length + ' 块');
     const viaName = { sina: '新浪', eastmoney: '东财', cache: '缓存' }[state.newsVia] || '未加载';
-    lines.push('新闻 ' + state.news.length + ' 条(' + viaName + ') · 研报 ' + state.reports.length + ' 篇');
+    lines.push('新闻 ' + state.news.length + ' 条(' + viaName + ')');
     const b = state.breadth;
     lines.push(b && b.total
       ? `市场宽度：${b.total} 只 · 涨 ${b.up} 跌 ${b.down} 平 ${b.flat} · 涨停 ${b.limitUp} 跌停 ${b.limitDown}` +
@@ -1999,6 +2100,15 @@
         renderNews();
         return;
       }
+      const newsCatBtn = e.target.closest('[data-newscat]');
+      if (newsCatBtn) {
+        state.newsCat = newsCatBtn.dataset.newscat;
+        renderNewsCatBar();
+        renderNews();
+        return;
+      }
+      const wsortBtn = e.target.closest('[data-wsort]');
+      if (wsortBtn) { state.watchSort = wsortBtn.dataset.wsort; renderWatchlist(true); return; }
       const sr = e.target.closest('.sr-item');
       if (sr) { pickSearch(+sr.dataset.idx); return; }
       if (!e.target.closest('.search-wrap')) hideSearch();
@@ -2067,10 +2177,20 @@
       window.Store.watchlist.toggle({ symbol: t.symbol, name: t.name, market: t.market });
       updateStar();
     });
+    // 均线自定义菜单：勾选即存 localStorage 并即时应用到当前图
     el.maToggle.addEventListener('click', () => {
-      state.detailMA = !state.detailMA;
-      el.maToggle.classList.toggle('active', state.detailMA);
-      if (state.chart) state.chart.setMAVisible(state.detailMA);
+      const menu = document.getElementById('maMenu');
+      if (!menu) return;
+      const open = menu.hidden;
+      menu.hidden = !open;
+      el.maToggle.classList.toggle('active', open);
+    });
+    document.addEventListener('change', (e) => {
+      const opt = e.target.closest('[data-maopt]');
+      if (!opt) return;
+      state.detailMACfg = Object.assign({}, state.detailMACfg, { [opt.dataset.maopt]: opt.checked });
+      window.Store.set('maCfg', state.detailMACfg);
+      if (state.chart) state.chart.setMAVisible(state.detailMACfg);
     });
 
     // 搜索
@@ -2206,6 +2326,7 @@
     // 新闻/研报不再启动即抓：首次进入对应 tab 时懒加载（setTab 分支），避免白跑请求
     // 首屏就把产业链渲染好，切到该 tab 时不会先看到空白
     loadChainQuotes().then(renderChains);
+    loadGlobe();
     loadHeatCrypto();
 
     startScheduler();
@@ -2214,6 +2335,7 @@
     schedule('selftest', async () => { renderSelfTest(); }, 15000);
 
     // 深链还原：带 #tab= / #symbol= 打开时直达对应视图（此时数据调度已起，详情会自行拉数）
+    state.detailMACfg = window.Store.get('maCfg', null) || { ma5: true, ma20: true, ema26: true };
     state.breadthHist = window.Store.get('breadthHist', []);
     if (location.hash && location.hash !== '#') renderFromHash();
   }

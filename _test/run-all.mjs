@@ -15,6 +15,7 @@ const groups = [
   { file: 'logic.test.mjs', net: false },
   { file: 'insight.test.mjs', net: false },
   { file: 'evolve.test.mjs', net: false },  // 市场时段/情绪历史/请求去重（纯函数）
+  { file: 'technical.test.mjs', net: false }, // 技术面指标手算核对（纯函数）
   { file: 'breadth.test.mjs', net: true },  // 结构断言为主，但取数需联网
   { file: 'detail.test.mjs', net: true },
   { file: 'degrade.test.mjs', net: true },

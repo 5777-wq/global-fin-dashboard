@@ -657,3 +657,86 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
 /* 加密情绪（与 A 股同构的第二块） */
 .mood-crypto { margin-bottom: 44px; }
 .mood-crypto:empty { display: none; }
+
+/* ============================================================ v20260909b 追加 ============================================================ */
+/* 全球指数 ticker 行（hero 下方） */
+.globe-bar { display: flex; gap: 22px; overflow-x: auto; scrollbar-width: none;
+  padding: 10px 2px; margin-top: 14px; border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border); }
+.globe-bar::-webkit-scrollbar { display: none; }
+.gcell { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.gflag svg { width: 16px; height: 11px; border-radius: 1.5px; display: block; }
+.gname { font-size: 11px; color: var(--text-tertiary); }
+.gval { font-size: 12px; font-weight: 600; color: var(--text); }
+.gpct { font-size: 11px; font-weight: 600; }
+
+/* 旗标通用尺寸（hero label / 宏观表 / 喊单徽章） */
+.flag { width: 16px; height: 11px; border-radius: 1.5px; vertical-align: -1px; margin-right: 6px; }
+.hero-label .flag { width: 14px; height: 10px; margin-right: 5px; }
+
+/* 均线自定义菜单（详情页 toolbar 弹层） */
+.ma-wrap { position: relative; display: inline-block; }
+.ma-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  min-width: 148px; padding: 8px 12px;
+  background: var(--bg-card, #111); border: 1px solid rgba(255,255,255,0.14); border-radius: 4px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.5); }
+.ma-menu label { display: flex; align-items: center; gap: 8px; padding: 5px 0;
+  font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+.ma-menu label:hover { color: var(--text); }
+.ma-menu i { width: 14px; height: 3px; border-radius: 1px; display: inline-block; margin-left: auto; }
+.ma-menu input { accent-color: var(--accent-signature); }
+
+/* 技术面板块（替换原大师卡片） */
+.tech-summary { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; margin-bottom: 16px;
+  border: 1px solid var(--border); border-left: 2px solid var(--accent-signature); }
+.ts-up { font-size: 13px; font-weight: 700; color: var(--up); }
+.ts-down { font-size: 13px; font-weight: 700; color: var(--down); }
+.ts-flat { font-size: 13px; color: var(--text-secondary); }
+.ts-dash { color: var(--text-faint); }
+.ts-note { margin-left: auto; font-size: 10px; color: var(--text-faint); }
+.tech-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.tech-card { border: 1px solid var(--border); padding: 12px 14px; }
+.tc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+.tc-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text); }
+.tc-bias { font-size: 10px; color: var(--text-tertiary); }
+.tc-bias.up { color: var(--up); }
+.tc-bias.down { color: var(--down); }
+.tc-text { font-size: 12px; line-height: 1.65; color: var(--text-secondary); }
+
+/* 新闻板块 pill 行 */
+.news-catbar { margin-top: 8px; }
+.news-catbar:empty { display: none; }
+.news-catbar .pill b { margin-left: 6px; font-weight: 500; opacity: 0.65; }
+
+/* 喊单页徽章 */
+.voice-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.vb { display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border: 1px solid var(--border); border-radius: 10px;
+  font-size: 10px; color: var(--text-secondary); background: rgba(255,255,255,0.03); }
+.vb .flag { margin-right: 0; width: 13px; height: 9px; }
+
+/* 世界经济仪表盘 */
+.macro-wrap { margin-top: 8px; padding-bottom: 30px; }
+.macro-table { border-top: 1px solid var(--border); overflow-x: auto; }
+.mrow { display: grid; grid-template-columns: 130px repeat(6, minmax(88px, 1fr));
+  gap: 8px; align-items: center; padding: 9px 6px; border-bottom: 1px solid var(--border); }
+.mrow.mhead { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-tertiary); position: sticky; top: 0; }
+.mrow .mcell { text-align: right; }
+.mrow .mcell.mname { text-align: left; font-size: 12px; font-weight: 600; color: var(--text); }
+.mrow.mhead .mcell { text-align: right; }
+.mrow.mhead .mcell.mname { text-align: left; }
+.mv { display: block; font-size: 12px; font-weight: 600; color: var(--text); }
+.my { display: block; font-size: 9px; color: var(--text-faint); }
+.mx { font-size: 12px; color: var(--text-faint); }
+
+/* 自选排序栏 */
+.watch-sortbar { display: flex; gap: 8px; margin-bottom: 14px; }
+
+@media (max-width: 640px) {
+  .tech-grid { grid-template-columns: 1fr; }
+  .mrow { grid-template-columns: 92px repeat(6, minmax(74px, 1fr)); }
+  .globe-bar { gap: 16px; }
+  .ma-menu { right: 0; left: auto; }
+}
