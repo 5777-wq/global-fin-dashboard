@@ -2,15 +2,15 @@
 
 # 🔭 OpenFinLens
 
-**把散落在一堆免费接口里的全球行情，聚成一屏可读的看板。**
-*Global markets, scraped from a pile of free public APIs, distilled into one readable pane.*
+**把散落在一堆免费接口里的全球行情、事件与资金，连成一条能读的市场线索。**
+*Global prices, events and money flows — scraped from free public APIs, connected into one readable thread.*
 
 **[线上体验 · Live Demo →](https://5777-wq.github.io/openfinlens/)**
 
 ![no build](https://img.shields.io/badge/build-none-000?style=flat-square)
 ![no npm](https://img.shields.io/badge/dependencies-0-000?style=flat-square)
 ![no backend](https://img.shields.io/badge/backend-none-000?style=flat-square)
-![tests](https://img.shields.io/badge/tests-122_passing-2ebd85?style=flat-square)
+![tests](https://img.shields.io/badge/tests-132_passing-2ebd85?style=flat-square)
 ![no keys](https://img.shields.io/badge/API_keys-0-000?style=flat-square)
 
 </div>
@@ -23,8 +23,8 @@
 K 线 + 技术面、产业链图谱、板块新闻、世界经济仪表盘——全部数据在**你的浏览器里**直连免费公开接口抓取。
 没有服务器，没有数据库，没有 `node_modules` 黑洞。克隆下来，双击 `index.html`，它就活了。
 
-> A financial dashboard that refuses to have a build step: vanilla HTML/CSS/JS, zero dependencies
-> (one vendored charting lib), zero API keys, everything fetched client-side from free public endpoints.
+> A financial intelligence terminal that refuses to have a build step: vanilla HTML/CSS/JS, zero dependencies
+> (three vendored libs, no runtime CDN), zero API keys, everything fetched client-side from free public endpoints.
 > Clone it, double-click `index.html`, done.
 
 ## 快速开始 · Quick start
@@ -42,13 +42,16 @@ python -m http.server 8765   # → http://127.0.0.1:8765
 | | 功能 | 说明 |
 |---|---|---|
 | 🖥️ | **行情总览** | 8 大品类 47 个核心标的，10s 轮询，红涨绿跌可切换（全球市场 hero + 六大指数卡：日·德·英·法·韩·印，带国旗） |
+| 🌏 | **3D 全球事件** | globe.gl 地球（本地 vendor），GDELT 事件按类别着色落点，缩放级别自适应聚类，点事件→详情→关联资产直达 K 线 |
+| ⚡ | **Event-on-Chart** | 宏观/央行/贸易/冲突事件与龙虎榜按日期画上 K 线（圆点 marker），点击弹出事件卡——把事件和价格反应放在同一屏 |
+| 💰 | **资金动向** | A股龙虎榜（净买额榜 + 次日/5日历史统计）与"公开言论"分栏呈现——发言 ≠ 交易，口径严格分开 |
 | 🔥 | **全市场热力图** | A股 ~5500 只 + 加密 80 币，手写 squarify + canvas；滚轮以光标为锚缩放、拖拽平移、双指捏合、右键复位 |
 | 📈 | **K线详情** | 分时/日/周/**月**，成交量副图，MA5/10/20/60 + EMA12/26 六线自由开关（localStorage 记忆） |
 | 🧪 | **技术面面板** | RSI(14) · MACD(12,26,9) · KDJ(9,3,3) · BOLL(20,2) · ATR(14) · 量比 · 均线排列——每条都是日K手算，附常用读法，绝不荐股 |
 | 🌡️ | **市场宽度 ×3** | A股（~5500 只）/ 美股（~13800 只全量）/ 加密（80 对）三块情绪温度计，涨跌家数、七段分布、A股含涨跌停分板判定 |
 | 🗺️ | **产业链图谱** | 10 条链 · 49 个环节 · 163 只成分股（逐一实测代码），环节强度 = 成分股涨跌幅实时均值 |
 | 📡 | **今日热门概念** | 东财 500+ 概念板块实时涨幅榜 → 命中人工链条直接跳转，未命中展开领涨成分股兜底 |
-| 📰 | **板块新闻 + 大V喊单** | 新闻按产业链板块分类过滤；马斯克/特朗普/黄仁勋/奥尔特曼等 10 人发言动向聚合（新闻口径，诚实标注） |
+| 📰 | **快讯 + 公开言论** | 快讯按产业链板块分类过滤；马斯克/特朗普/黄仁勋/奥尔特曼等 10 人发言聚合（新闻口径，诚实标注，住"资金"页） |
 | 🌍 | **世界经济仪表盘** | 世界银行 API：美中日德英法印韩 × GDP/增长/通胀/失业/债务/经常账户，列内色阶热图 |
 | ⭐ | **自选 + 搜索** | 跨市场收藏（localStorage）、组合概览、按涨跌幅排序；搜索支持中文/代码/拼音 |
 | ⌨️ | **细节** | 市场时段徽章（夏令时正确）、hash 深链、键盘 1-9/0 切 tab、`/` 搜索、`Backspace` 返回、开屏真实进度条 |
@@ -61,9 +64,15 @@ python -m http.server 8765   # → http://127.0.0.1:8765
 │     主源 ──失败──▶ 备源 ──失败──▶ localStorage 缓存（带时间戳）
 │                                    │
 ├── app.js    轮询调度（setTimeout 链）→ 增量 patch DOM，不整墙重建
-├── treemap/charts/technical  纯函数计算层，全部可单测
+├── treemap/charts/technical/events  纯函数计算层，全部可单测
+├── globe.js + bus.js    3D 事件地球 ↔ K线 ↔ 资金，通过轻量事件总线联动
 └── 永不白屏：任何一层挂掉都是"降级角标 + 旧数据/骨架"，绝无弹窗报错
 ```
+
+海外源（GDELT）**不在浏览器里请求**：`.github/workflows/collect.yml` 每 30 分钟抓取、清洗、
+去重、地理定位后提交一份静态 JSON，浏览器只读自己的数据——核心功能不要求用户能直连海外接口。
+*Overseas sources are collected server-side (GitHub Actions) into a static JSON; the browser only
+ever talks to its own data plus domestic endpoints.*
 
 *Every data category goes through an adapter chain: primary → fallback → cached, with a tiny
 badge telling you when you're not looking at live data. The scheduler is a `setTimeout` chain,
@@ -80,6 +89,8 @@ DOM updates are incremental patches, and nothing ever throws a blank screen at y
 | 外汇 / 商品 / 国债收益率 | 东财 secid（119/133、101-103、171） | 新浪（需代理） | 缓存 |
 | K线 / 分时 | 腾讯 `ifzq`（前复权） | 东财 → 空态 | 不白屏 |
 | 概念板块榜 / 成分股 | 东财 `clist`（`m:90+t:3` / `b:BKxxxx`） | — | 隐藏榜单 |
+| A股龙虎榜 | 东财 datacenter-web（净买额榜，CORS 直连） | — | 空态 + 重试 |
+| 全球事件 | **GDELT → GitHub Actions 每 30 分钟采集** → 静态 JSON | localStorage 缓存 | 诚实空态 |
 | 新闻 | 新浪 roll（JSONP） | 东财 `np-listapi` | 缓存 60s |
 | 宏观年度指标 | 世界银行 `api.worldbank.org` | — | 缓存 24h |
 | 搜索 | 东财 searchapi（中文/代码） | codetable（拼音） | 空态 |
@@ -120,8 +131,8 @@ DOM updates are incremental patches, and nothing ever throws a blank screen at y
 ## 测试 · Tests
 
 ```bash
-node _test/run-all.mjs            # 全部 9 组 122 项
-node _test/run-all.mjs --offline  # 只跑离线 4 组 65 项（断网/CI 友好）
+node _test/run-all.mjs            # 全部 10 组 132 项
+node _test/run-all.mjs --offline  # 只跑离线 5 组 75 项（断网/CI 友好）
 ```
 
 纯 Node 零依赖。覆盖：treemap 面积守恒与视口数学、情绪指数口径与七段分布守恒、技术指标手算核对
@@ -132,6 +143,9 @@ node _test/run-all.mjs --offline  # 只跑离线 4 组 65 项（断网/CI 友好
 ## 已知短板 · Known limitations
 
 - 免费接口有延迟（东财 `push2delay` 名字里就写着 delay），**不构成投资建议**；
+- 全球事件的坐标是**关键词地理定位（国家/地区级）**，不是精确地理编码；事件在 K 线上按"报道日期"落位，不是成交时间——两者都诚实标注；
+- 龙虎榜 D1/D5 列是该股历史次日/5日涨跌的**统计**，不是预测；"某席位 = 某游资"这类推断未展示（上游不公开个人身份）；
+- ARK 每日交易 / SEC Form 4 / 13F 未接入：免费直连源不稳定且 data.sec.gov 不带 CORS，需要采集层支持，做了会补上——**宁可缺，不放假数据**；
 - 外汇/商品的日K 无免费直连源（详见踩坑实录第一条），报价与情绪不受影响；
 - 加密"市值"用 24h 成交额代理——真实流通量免费拿不到；
 - 美股分时盘前盘后只有 1 个点（上游限制），会自动降级为日K；
@@ -148,7 +162,7 @@ endpoints and may be delayed or wrong. Trade at your own risk.*
 
 <div align="center">
 
-**技术栈：** 原生 HTML/CSS/JS · [lightweight-charts](https://github.com/tradingview/lightweight-charts) v4.2.3（vendored, Apache-2.0）· 手写 squarify · 世界银行/腾讯/东财/币安/新浪 公开接口
+**技术栈：** 原生 HTML/CSS/JS · [lightweight-charts](https://github.com/tradingview/lightweight-charts) v4.2.3（vendored, Apache-2.0）· [globe.gl](https://github.com/vasturiano/globe.gl) 2.46（vendored, MIT，内置 three.js）· [topojson-client](https://github.com/topojson/topojson-client)（vendored, ISC）· 手写 squarify · 腾讯/东财/币安/新浪/世界银行/GDELT 公开接口（许可证详见 `lib/THIRD_PARTY.md`）
 
 *如果它帮你省了一个付费行情软件的订阅，star 就是最好的咖啡。*
 *If this saved you a market-data subscription, a star is the cheapest coffee.* ☕

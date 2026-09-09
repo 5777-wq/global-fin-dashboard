@@ -1,0 +1,9 @@
+{
+ "generatedAt": null,
+ "source": "GDELT DOC 2.0 (artlist)",
+ "windowHours": 6,
+ "count": 0,
+ "license": "GDELT 免费开放数据（gdeltproject.org），坐标为本项目关键词地理定位，精度为国家/地区级",
+ "note": "占位文件：采集任务（.github/workflows/collect.yml，每 30 分钟）首次运行后本文件将被真实事件替换。前端将此文件识别为'暂无数据'，不造假事件。",
+ "events": []
+}

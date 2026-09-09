@@ -62,6 +62,16 @@
     boardItems: [], boardLoadedAt: 0, boardVia: null,
     boardOpenBk: null, boardStocks: [], boardGen: 0,
     voices: null, voicesAt: 0, voicesGen: 0, globeQuotes: null,
+    events: null, eventsVia: null, eventsGenAt: null, eventsStale: true, eventsLoadedAt: 0,
+    eventsSub: 'globe',        // 事件页子视图：globe（全球事件）| news（实时快讯，旧"新闻"tab）
+    eventsType: 'all',         // 事件类型过滤（all / macro / central_bank / …）
+    eventsSource: '',          // 数据源名（状态行合成用）
+    globeStatusPts: null,      // 地球点数状态（onStatus 回调），与数据源状态行合并显示
+    selEvent: null,            // 当前选中的全球事件
+    globeReady: false,         // 3D 地球实例化完成标记
+    globeFailed: false,        // vendor/WebGL 不可用：列表模式兜底，不再反复初始化
+    lhb: null, lhbAt: 0,       // A股龙虎榜（东财直连，日频披露）
+    chartEventsOn: true,       // 详情页 K 线事件标记开关
     lastUpdate: null,
     timers: {},
     stopped: false,
@@ -79,7 +89,10 @@
     'segUpdown', 'segRefresh', 'swDegraded', 'sourceStatus', 'updatedLine',
     'detailName', 'detailCode', 'detailPrice', 'detailChg', 'detailStar', 'detailStats',
     'detailBack', 'klineChart', 'chartBox', 'detailInsight', 'maToggle',
-    'globeBar', 'macroBox', 'voicesList', 'voicesSub', 'newsCatBar'];
+    'globeBar', 'macroBox', 'voicesList', 'voicesSub', 'newsCatBar',
+    'eventsSub', 'globeStage', 'globeStatus', 'globeFallback', 'globeLegend',
+    'evGlobePane', 'evNewsPane', 'evTypeBar', 'eventList', 'eventDetail',
+    'lhbBox', 'lhbVia', 'evtToggle', 'chartEventCard'];
 
   const pctClass = (p) => (p === null || p === undefined || isNaN(p)) ? 'flat' : (p > 0 ? 'up' : p < 0 ? 'down' : 'flat');
   // 缓存 matchMedia 结果：渲染期每张卡片查 2 次，整墙渲染就是上百次 matchMedia 调用
@@ -1157,6 +1170,8 @@
       state.chart.setData(data);
       state.chart.setMAVisible(state.detailMACfg.lines);
     }
+    // 事件标记层：全球事件 + 龙虎榜按 symbol 落位（分时为 no-op）
+    applyDetailEvents();
     // 分时下 MA 无意义（加密的 5 分钟 K 除外），禁用开关以免"看起来坏了"
     if (el.maToggle) el.maToggle.disabled = (kind === 'trend' && t.market !== 'crypto');
   }
@@ -1209,7 +1224,7 @@
 
   function newsFiltered() {
     const kw = (el.searchInput.value || '').trim();
-    const isNewsView = state.view === 'news';
+    const isNewsView = state.tab === 'events' && state.eventsSub === 'news';
     return state.news.filter(it => {
       if (!window.NewsSource.matchMarket(it, state.newsMkt)) return false;
       if (state.newsCat !== 'all' && window.NewsSource.classify(it) !== state.newsCat) return false;
@@ -1384,6 +1399,280 @@
       </div>`;
     }).join('');
     el.globeBar.innerHTML = cells || '<span class="empty">全球指数暂不可用</span>';
+  }
+
+  /* ==================== 全球事件（GDELT 采集 JSON → 地球 / 列表 / K线标记） ==================== */
+
+  function eventsFiltered() {
+    if (state.eventsType === 'all') return state.events || [];
+    return (state.events || []).filter(e => e.type === state.eventsType);
+  }
+
+  async function loadEvents() {
+    const { events, via, generatedAt, stale, source } = await window.EventsSource.getEvents();
+    state.events = events;
+    state.eventsVia = via;
+    state.eventsGenAt = generatedAt;
+    state.eventsStale = stale;
+    state.eventsSource = source;
+    state.eventsLoadedAt = Date.now();
+    renderGlobeStatus();
+    renderEvTypeBar();
+    renderEventList();
+    renderGlobeLegend();
+    applyDetailEvents();   // 新事件可能补上 K 线标记
+    if (state.globeReady) window.GlobeView.setEvents(eventsFiltered());
+  }
+
+  // 状态行合成：数据源新鲜度（采集时间/滞后/缓存）+ 地球点数，谁后到都不覆盖谁
+  function renderGlobeStatus() {
+    if (!el.globeStatus) return;
+    const pts = state.globeStatusPts;
+    if (!state.eventsVia) {
+      el.globeStatus.classList.add('warn');
+      el.globeStatus.textContent = '暂无数据 · 采集任务未运行（GitHub Actions 每 30 分钟采集一轮）';
+      return;
+    }
+    const when = state.eventsGenAt ? fmtTime(state.eventsGenAt) : '时间未知';
+    el.globeStatus.classList.toggle('warn', !!state.eventsStale);
+    const src = (state.eventsVia === 'cache' ? '缓存 · ' : '') + (state.eventsSource || '') +
+      ' · 更新于 ' + when + (state.eventsStale ? ' · 滞后' : '');
+    el.globeStatus.textContent = pts ? src + ' · ' + pts : src;
+  }
+
+  function renderEvTypeBar() {
+    if (!el.evTypeBar) return;
+    const list = state.events || [];
+    if (!list.length) { el.evTypeBar.innerHTML = ''; return; }
+    const counts = {};
+    list.forEach(e => { counts[e.type] = (counts[e.type] || 0) + 1; });
+    const types = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    el.evTypeBar.innerHTML = ['all'].concat(types).map(t => {
+      const meta = window.Events.TYPE_META[t];
+      const dot = meta ? `<i class="ev-dot" style="background:${meta.color}"></i>` : '';
+      const label = t === 'all' ? '全部类型' : window.Events.typeLabel(t);
+      return `<button class="pill${state.eventsType === t ? ' active' : ''}" data-evtype="${t}">${dot}${label}<b class="num">${t === 'all' ? list.length : counts[t]}</b></button>`;
+    }).join('');
+  }
+
+  function renderGlobeLegend() {
+    if (!el.globeLegend) return;
+    const types = Array.from(new Set(eventsFiltered().map(e => e.type))).slice(0, 6);
+    el.globeLegend.innerHTML = types.map(t =>
+      `<span class="gl-item"><i class="ev-dot" style="background:${window.Events.typeColor(t)}"></i>${escapeHTML(window.Events.typeLabel(t))}</span>`).join('');
+  }
+
+  function renderEventList() {
+    if (!el.eventList) return;
+    const list = eventsFiltered();
+    if (!list.length) {
+      el.eventList.innerHTML = '<div class="empty">暂无事件数据 · 采集任务每 30 分钟运行一轮，首份真实数据约半小时内到位</div>';
+      return;
+    }
+    el.eventList.innerHTML = list.slice(0, 80).map(ev => {
+      const sel = state.selEvent && state.selEvent.id === ev.id;
+      return `<div class="news-item event-row${sel ? ' sel' : ''}" data-ev="${escapeHTML(ev.id)}" tabindex="0" role="button"
+          aria-label="${escapeHTML(ev.title)}">
+        <div class="news-meta">
+          <span class="ev-dot" style="background:${window.Events.typeColor(ev.type)}"></span>
+          <span>${escapeHTML(window.Events.typeLabel(ev.type))}</span>
+          <span class="num">${escapeHTML(fmtNewsTime(ev.publishedAt))}</span>
+          <span class="news-src">${escapeHTML(ev.source || '')}</span>
+          ${ev.importance === 'high' ? '<span class="ev-imp">重要</span>' : ''}
+        </div>
+        <div class="news-title">${escapeHTML(ev.title)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderEventDetail(ev) {
+    if (!el.eventDetail) return;
+    if (!ev) { el.eventDetail.hidden = true; el.eventDetail.innerHTML = ''; return; }
+    const meta = window.Events.TYPE_META[ev.type] || {};
+    const rel = ev.relatedSymbols.map(sym => {
+      const q = findQuote(sym);
+      return { sym, name: q ? q.name : sym };
+    });
+    const safeUrl = /^https?:\/\//i.test(ev.sourceUrl || '') ? ev.sourceUrl : '';
+    el.eventDetail.hidden = false;
+    el.eventDetail.innerHTML = `<div class="evd-head" style="border-left-color:${meta.color || '#8a93a6'}">
+        <span class="evd-type" style="color:${meta.color || '#8a93a6'}">${escapeHTML(window.Events.typeLabel(ev.type))}</span>
+        ${ev.importance === 'high' ? '<span class="ev-imp">重要</span>' : ''}
+        <span class="num evd-time">${escapeHTML(fmtNewsTime(ev.publishedAt))}</span>
+        <button class="evd-close" data-evclose aria-label="关闭事件详情">×</button>
+      </div>
+      <div class="evd-title">${escapeHTML(ev.title)}</div>
+      <div class="evd-meta num">来源 ${escapeHTML(ev.source || '--')}${safeUrl ? ` · <a href="${escapeHTML(safeUrl)}" target="_blank" rel="noopener">原文链接</a>` : ''}${ev.country ? ' · ' + escapeHTML(ev.country) : ''}</div>
+      ${rel.length ? `<div class="evd-rel"><span class="evd-rel-label">关联资产</span>${rel.map(r =>
+        `<button class="rel-chip num" data-relsym="${escapeHTML(r.sym)}">${escapeHTML(r.name)}</button>`).join('')}</div>` : ''}`;
+  }
+
+  // 地球聚合点（● N EVENTS）点击 → 展开该区域事件清单
+  function showCluster(d) {
+    if (!el.eventDetail) return;
+    el.eventDetail.hidden = false;
+    el.eventDetail.innerHTML = `<div class="evd-head">
+        <span class="evd-type num">${d.count} EVENTS</span>
+        ${d.evs[0].country ? `<span class="num evd-time">${escapeHTML(d.evs[0].country)}</span>` : ''}
+        <button class="evd-close" data-evclose aria-label="关闭事件详情">×</button>
+      </div>` +
+      d.evs.map(ev => `<div class="evd-item" data-ev="${escapeHTML(ev.id)}" tabindex="0" role="button">
+        <span class="ev-dot" style="background:${window.Events.typeColor(ev.type)}"></span>
+        <span class="evd-item-t">${escapeHTML(ev.title.slice(0, 64))}</span>
+        <span class="num evd-item-s">${escapeHTML(fmtNewsTime(ev.publishedAt))}</span>
+      </div>`).join('');
+  }
+
+  function selectGlobalEvent(ev) {
+    state.selEvent = ev;
+    renderEventList();
+    renderEventDetail(ev);
+    if (window.GlobeView && state.globeReady) window.GlobeView.select(ev);   // 平滑转向 + 高亮环
+  }
+
+  function ensureGlobe() {
+    if (state.globeReady || state.globeFailed || !el.globeStage) return Promise.resolve(null);
+    return window.GlobeView.create(el.globeStage, {
+      onSelect: selectGlobalEvent,
+      onCluster: showCluster,
+      onStatus: (t) => { state.globeStatusPts = t; renderGlobeStatus(); },
+    }).then(g => {
+      if (g) {
+        state.globeReady = true;
+        window.GlobeView.setEvents(eventsFiltered());
+        renderGlobeLegend();
+      } else {
+        state.globeFailed = true;   // vendor/WebGL 不可用：列表模式兜底，不再反复尝试
+      }
+      return g;
+    });
+  }
+
+  function refreshEventsData() {
+    if (!state.events || Date.now() - state.eventsLoadedAt > 240000) {
+      return loadEvents().catch(() => { /* 降级角标已表达 */ });
+    }
+    return Promise.resolve();
+  }
+
+  function setEventsSub(sub) {
+    state.eventsSub = sub === 'news' ? 'news' : 'globe';
+    document.querySelectorAll('[data-evsub]').forEach(b =>
+      b.classList.toggle('active', b.dataset.evsub === state.eventsSub));
+    const globeMode = state.eventsSub === 'globe';
+    if (el.evGlobePane) el.evGlobePane.hidden = !globeMode;
+    if (el.evNewsPane) el.evNewsPane.hidden = globeMode;
+    if (globeMode) {
+      ensureGlobe();
+      refreshEventsData();
+    } else if (!state.news.length) {
+      state.newsCat = 'all';   // 进快讯面板重置板块过滤（旧新闻 tab 行为）
+      el.newsList.innerHTML = '<div class="sk sk-row"></div>'.repeat(6);
+      loadNews();
+    } else if (Date.now() - (state.newsLoadedAt || 0) > 55000) {
+      loadNews();
+    } else {
+      renderNews();
+    }
+  }
+
+  /* ==================== 资金动向（A股龙虎榜 + 公开言论） ==================== */
+
+  async function loadLhb() {
+    const res = await window.LhbSource.getLhb();
+    state.lhb = res;
+    state.lhbAt = Date.now();
+    renderLhb();
+    applyDetailEvents();   // A 股详情页可能因此补上"龙虎榜"标记
+  }
+
+  function fmtAmt(v) {
+    if (v === null || v === undefined || isNaN(v)) return '--';
+    const a = Math.abs(v);
+    if (a >= 1e8) return (v / 1e8).toFixed(2) + '亿';
+    if (a >= 1e4) return (v / 1e4).toFixed(1) + '万';
+    return String(Math.round(v));
+  }
+
+  function renderLhb() {
+    if (!el.lhbBox) return;
+    const res = state.lhb;
+    if (!res || !res.rows.length) {
+      el.lhbBox.innerHTML = '<div class="empty">龙虎榜暂不可用（东财数据中心未响应，稍后自动重试）</div>';
+      if (el.lhbVia) el.lhbVia.textContent = '';
+      return;
+    }
+    if (el.lhbVia) el.lhbVia.textContent = res.tradeDate + ' 披露 · 东财数据中心 · 净买额前 60 · 点击行进K线';
+    el.lhbBox.innerHTML = `<div class="lrow-head" aria-hidden="true">
+        <span>#</span><span>股票 / 代码</span><span>涨跌幅</span><span>龙虎榜净买</span><span>榜上成交</span><span>次日</span><span>5日</span><span>上榜原因</span>
+      </div>` + res.rows.map((r, i) => `<div class="lrow" data-lhb="${escapeHTML(r.symbol)}" tabindex="0" role="button"
+        aria-label="${escapeHTML(r.name)} 龙虎榜净买 ${fmtAmt(r.netAmt)}">
+      <span class="lr-no num">${String(i + 1).padStart(2, '0')}</span>
+      <span class="lr-name">${escapeHTML(r.name)}<span class="lr-code num">${escapeHTML(r.code)}</span></span>
+      <span class="lr-pct num ${pctClass(r.changePct)}">${fmtPct(r.changePct)}</span>
+      <span class="lr-net num ${pctClass(r.netAmt)}">${fmtAmt(r.netAmt)}</span>
+      <span class="lr-deal num">${fmtAmt(r.dealAmt)}</span>
+      <span class="lr-d num">${r.d1 === null ? '--' : fmtPct(r.d1)}</span>
+      <span class="lr-d num">${r.d5 === null ? '--' : fmtPct(r.d5)}</span>
+      <span class="lr-tag" title="${escapeHTML(r.reason)}">${escapeHTML(r.reason)}</span>
+    </div>`).join('');
+  }
+
+  /* ---- Event-on-Chart：详情页 K 线事件标记（全球事件 + 龙虎榜） ---- */
+
+  function chartEventsFor(t) {
+    if (!t) return [];
+    const out = [];
+    (state.events || []).forEach(ev => {
+      if (window.Events.eventsForSymbol([ev], t.symbol).length) {
+        const ce = window.Events.toChartEvent(ev);
+        if (ce) out.push(ce);
+      }
+    });
+    if (state.lhb && state.lhb.rows.length) {
+      state.lhb.rows.forEach(r => {
+        if (r.symbol === t.symbol && r.tradeDate) {
+          out.push({ time: r.tradeDate, color: '#D97757', text: '龙虎榜', ev: { kind: 'lhb', row: r } });
+        }
+      });
+    }
+    out.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+    return out.slice(0, 40);
+  }
+
+  function applyDetailEvents() {
+    if (!state.chart || state.chartKind !== 'kline') return;
+    const evs = state.chartEventsOn ? chartEventsFor(state.detail) : [];
+    state.chart.setEvents(evs);
+    if (el.evtToggle) {
+      el.evtToggle.textContent = '事件 ' + (evs.length ? '●' + evs.length : '○0');
+      el.evtToggle.classList.toggle('active', state.chartEventsOn);
+    }
+  }
+
+  function renderChartEventCard(m) {
+    if (!el.chartEventCard) return;
+    const first = m && m.events && m.events[0];
+    if (!first) return;
+    if (first.ev && first.ev.kind === 'lhb') {
+      const r = first.ev.row;
+      el.chartEventCard.hidden = false;
+      el.chartEventCard.innerHTML = `<div class="ce-head"><span class="ce-tag" style="color:#D97757">龙虎榜 · ${escapeHTML(r.tradeDate)}</span>
+          <button class="evd-close" data-ceclose aria-label="关闭">×</button></div>
+        <div class="ce-line num">净买 <b class="${pctClass(r.netAmt)}">${fmtAmt(r.netAmt)}</b> · 榜上成交 ${fmtAmt(r.dealAmt)}` +
+        (r.d1 !== null ? ` · 次日 <b class="${pctClass(r.d1)}">${fmtPct(r.d1)}</b>` : '') +
+        (r.d5 !== null ? ` · 5日 <b class="${pctClass(r.d5)}">${fmtPct(r.d5)}</b>` : '') + `</div>
+        <div class="ce-line">上榜原因：${escapeHTML(r.reason || '--')} · 交易所公开披露（日频），非实时交易</div>`;
+      return;
+    }
+    const ev = first.ev;
+    const meta = window.Events.TYPE_META[ev.type] || {};
+    const safeUrl = /^https?:\/\//i.test(ev.sourceUrl || '') ? ev.sourceUrl : '';
+    el.chartEventCard.hidden = false;
+    el.chartEventCard.innerHTML = `<div class="ce-head"><span class="ce-tag" style="color:${meta.color || '#8a93a6'}">${escapeHTML(window.Events.typeLabel(ev.type))} · <span class="num">${escapeHTML(first.time)}</span></span>
+        <button class="evd-close" data-ceclose aria-label="关闭">×</button></div>
+      <div class="ce-line">${escapeHTML(ev.title)}</div>
+      <div class="ce-line num">来源 ${escapeHTML(ev.source || '--')}${safeUrl ? ` · <a href="${escapeHTML(safeUrl)}" target="_blank" rel="noopener">原文</a>` : ''} · 按报道日期落位，非成交时间</div>`;
   }
 
   /* ==================== 世界经济仪表盘（世界银行，免密钥） ==================== */
@@ -1718,8 +2007,10 @@
 
   const VIEW_OF_TAB = {
     all: 'market', cn: 'market', hkus: 'market', crypto: 'market', fxmacro: 'market',
-    mood: 'mood', news: 'news', voices: 'voices', chain: 'chain', watch: 'watch',
+    events: 'events', funds: 'funds', mood: 'mood', chain: 'chain', watch: 'watch',
+    news: 'events', voices: 'funds',   // 旧 hash / 旧快捷键深链兼容：新闻→事件页，喊单→资金页
   };
+  const TAB_ALIAS = { news: 'events', voices: 'funds' };
 
   function setView(view) {
     state.view = view;
@@ -1778,14 +2069,20 @@
     }
   }
 
-  // 离开详情的统一清理（图表实例、详情态、标题）
+  // 离开详情的统一清理（图表实例、详情态、标题、事件卡）
   function leaveDetail() {
     disposeChart();
     state.detail = null;
+    if (el.chartEventCard) el.chartEventCard.hidden = true;
     document.title = 'GLOBAL FIN · 全球金融看板';
   }
 
   function setTab(tab, opts) {
+    // 旧 tab 名兼容：新闻→事件页(快讯子面板)，喊单→资金页
+    if (TAB_ALIAS[tab]) {
+      if (tab === 'news') state.eventsSub = 'news';
+      tab = TAB_ALIAS[tab];
+    }
     const animate = !opts || opts.animate !== false;   // 返回详情/改设置时不重播入场动画
     // 重复点击同一 tab：短路，避免整墙重建 + stagger 重播 + 焦点丢失
     if (tab === state.tab && state.view === (VIEW_OF_TAB[tab] || 'market')) return;
@@ -1826,21 +2123,14 @@
 
     if (view === 'market') renderCardWall(animate);
     if (view === 'watch') renderWatchlist();
-    if (view === 'voices') {
+    if (view === 'funds') {
+      // 公开言论（旧喊单）：55s 过期重拉；龙虎榜：4 分钟缓存窗口
       if (!state.voices || Date.now() - (state.voicesAt || 0) > 55000) loadVoices();
       else renderVoices();
+      if (!state.lhb || Date.now() - state.lhbAt > 240000) loadLhb().catch(() => { /* 降级角标 */ });
+      else renderLhb();
     }
-    if (view === 'news') {
-      state.newsMkt = tab === 'news' ? state.newsMkt : 'all';
-      state.newsCat = 'all';
-      // 定时器只在新闻视图内轮询，离开后回来若数据过期则立即重拉
-      if (!state.news.length) {
-        el.newsList.innerHTML = '<div class="sk sk-row"></div>'.repeat(6);
-        loadNews();
-      }
-      else if (Date.now() - (state.newsLoadedAt || 0) > 55000) loadNews();
-      else renderNews();
-    }
+    if (view === 'events') setEventsSub(state.eventsSub);
     if (view === 'mood') {
       if (state.breadth) renderMood();
       loadMood();
@@ -1875,7 +2165,7 @@
   }
 
   async function runSearch(kw) {
-    if (state.view === 'news') { state.searchKw = kw; renderNews(); return; }
+    if (state.tab === 'events' && state.eventsSub === 'news') { state.searchKw = kw; renderNews(); return; }
     if (!kw) { hideSearch(); return; }
     // 竞态守卫：快速连续输入时，慢的旧响应不得覆盖新关键词的结果（与 chartGen 同理）
     const gen = ++state.searchGen;
@@ -2004,7 +2294,10 @@
 
     // 新闻 / 研报 / 产业链行情只在用户处于对应视图时轮询（进入 tab 时 setTab 会立即补一次），
     // 否则 163 只成分股每 10s、新闻每 60s 白跑请求，浪费配额还提高被上游限流的风险
-    schedule('news', async () => { if (state.view === 'news') await loadNews(); }, 60000);
+    schedule('news', async () => {
+      if (!(state.view === 'events' && state.eventsSub === 'news')) return;
+      await loadNews();
+    }, 60000);
     schedule('chain', async () => {
       if (state.view !== 'chain') return;
       await loadChainQuotes();
@@ -2016,11 +2309,21 @@
       if (state.view !== 'chain') return;
       await loadBoards();
     }, 60000);
-    // 大V喊单 60s（仅 voices 视图）；全球指数条 60s（仅市场视图）
+    // 大V喊单 60s（现住资金页"公开言论"栏）；全球指数条 60s（仅市场视图）
     schedule('voices', async () => {
-      if (state.view !== 'voices') return;
+      if (state.view !== 'funds') return;
       await loadVoices();
     }, 60000);
+    // 全球事件 JSON：采集任务 30 分钟一轮，页面停留时 4 分钟拉一次即可
+    schedule('events', async () => {
+      if (state.view !== 'events' || state.eventsSub !== 'globe') return;
+      await loadEvents();
+    }, 240000);
+    // 龙虎榜：日频披露 + 当日 17:00 后陆续更新，5 分钟轮询足够
+    schedule('lhb', async () => {
+      if (state.view !== 'funds') return;
+      await loadLhb();
+    }, 300000);
     schedule('globe', async () => {
       if (state.view !== 'market' || !state.globeQuotes) return;
       await loadGlobe();
@@ -2193,6 +2496,40 @@
       }
       const wsortBtn = e.target.closest('[data-wsort]');
       if (wsortBtn) { state.watchSort = wsortBtn.dataset.wsort; renderWatchlist(true); return; }
+      // ---- 事件页：子面板切换 / 类型过滤 / 事件行 / 关联资产 / 聚合清单 / 详情卡 ----
+      const evsub = e.target.closest('[data-evsub]');
+      if (evsub) { setEventsSub(evsub.dataset.evsub); return; }
+      const evtype = e.target.closest('[data-evtype]');
+      if (evtype) {
+        state.eventsType = evtype.dataset.evtype;
+        renderEvTypeBar();
+        renderEventList();
+        renderGlobeLegend();
+        if (state.globeReady) window.GlobeView.setEvents(eventsFiltered());
+        return;
+      }
+      const evRow = e.target.closest('[data-ev]');
+      if (evRow) {
+        const ev = (state.events || []).find(x => x.id === evRow.getAttribute('data-ev'));
+        if (ev) selectGlobalEvent(ev);
+        return;
+      }
+      if (e.target.closest('[data-evclose]')) { renderEventDetail(null); return; }
+      const relChip = e.target.closest('[data-relsym]');
+      if (relChip) {
+        const sym = relChip.getAttribute('data-relsym');
+        const t = targetFromSymbol(sym) || targetFromHashSymbol(sym);
+        if (t) openDetail(t);
+        return;
+      }
+      // ---- 资金页：龙虎榜行进详情（K 线会自动叠加"龙虎榜"标记） ----
+      const lhbRow = e.target.closest('[data-lhb]');
+      if (lhbRow) {
+        const t = targetFromHashSymbol(lhbRow.getAttribute('data-lhb'));
+        if (t) openDetail(t);
+        return;
+      }
+      if (e.target.closest('[data-ceclose]')) { if (el.chartEventCard) el.chartEventCard.hidden = true; return; }
       const sr = e.target.closest('.sr-item');
       if (sr) { pickSearch(+sr.dataset.idx); return; }
       if (!e.target.closest('.search-wrap')) hideSearch();
@@ -2216,7 +2553,7 @@
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (/^[0-9]$/.test(e.key)) {
-        const order = ['all', 'cn', 'hkus', 'crypto', 'fxmacro', 'mood', 'news', 'chain', 'report', 'watch'];
+        const order = ['all', 'cn', 'hkus', 'crypto', 'fxmacro', 'events', 'funds', 'mood', 'chain', 'watch'];
         const tab = order[+e.key === 0 ? 9 : +e.key - 1];
         if (tab) { setTab(tab); e.preventDefault(); }
         return;
@@ -2303,10 +2640,18 @@
       }
     });
 
+    // K 线事件标记开关（全球事件 + 龙虎榜）
+    if (el.evtToggle) {
+      el.evtToggle.addEventListener('click', () => {
+        state.chartEventsOn = !state.chartEventsOn;
+        applyDetailEvents();
+      });
+    }
+
     // 搜索
     el.searchInput.addEventListener('input', (e) => doSearch(e.target.value.trim()));
     el.searchInput.addEventListener('keydown', (e) => {
-      if (state.view === 'news') return;
+      if (state.tab === 'events' && state.eventsSub === 'news') return;
       const n = state.searchItems.length;
       if (e.key === 'ArrowDown' && n) {
         e.preventDefault();
@@ -2476,6 +2821,12 @@
     loadChainQuotes().then(renderChains);
     loadGlobe();
     loadHeatCrypto();
+
+    // 全球事件 + 龙虎榜：开屏后后台预取（K 线事件标记要用，事件页/资金页进来秒显）
+    loadEvents().catch(() => { /* 无数据时 UI 显示"采集任务未运行" */ });
+    loadLhb().catch(() => { /* 同上 */ });
+    // K 线 marker 点击 → 事件卡（charts.js 抛出，详情页渲染）
+    window.Bus.on('chart:event', renderChartEventCard);
 
     startScheduler();
     // 自检区也走 setTimeout 链（禁令 3：不许用 setInterval）

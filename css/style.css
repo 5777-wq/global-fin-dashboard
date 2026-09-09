@@ -751,3 +751,91 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
   .gcard .hero-value { font-size: 17px; }
   .ma-menu { right: 0; left: auto; }
 }
+
+/* ==================== 全球事件（3D 地球 + 事件流） ==================== */
+.tool-status { font-size: 10px; color: var(--text-faint); font-family: var(--font-mono); letter-spacing: 0.06em; }
+.tool-status.warn { color: var(--warn); }
+.ev-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.ev-imp { font-size: 9px; padding: 1px 6px; border: 1px solid var(--warn); color: var(--warn);
+  border-radius: 3px; letter-spacing: 0.08em; }
+.event-row { cursor: pointer; }
+.event-row:hover .news-title { color: var(--accent-signature); }
+.event-row.sel .news-title { color: var(--accent-signature); }
+
+.globe-stage { position: relative; height: min(60vh, 520px); margin-bottom: 16px;
+  border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+  background: #0a0c0f; }
+.globe-stage > div:first-child { animation: globeIn 0.5s var(--ease-out) both; }
+@keyframes globeIn { from { opacity: 0; } to { opacity: 1; } }
+.globe-hint { position: absolute; right: 12px; bottom: 10px; font-size: 10px;
+  color: var(--text-faint); letter-spacing: 0.06em; pointer-events: none; }
+.globe-legend { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 12px;
+  flex-wrap: wrap; pointer-events: none; }
+.gl-item { display: inline-flex; align-items: center; gap: 5px; font-size: 10px;
+  color: var(--text-tertiary); font-family: var(--font-mono); }
+.globe-fallback { position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 12px; color: var(--text-tertiary); padding: 24px; text-align: center; }
+/* globe.gl 的 pointLabel 悬浮提示（HTML 层） */
+.gp-tip { display: flex; flex-direction: column; gap: 2px; padding: 7px 10px;
+  background: rgba(12,13,16,0.92); border: 1px solid var(--border-hover); border-radius: 4px;
+  font-family: var(--font-sans, sans-serif); max-width: 260px; }
+.gp-tip .gp-t { font-size: 11px; font-weight: 500; color: var(--text); line-height: 1.4; }
+.gp-tip .gp-s { font-size: 9px; color: var(--text-faint); letter-spacing: 0.08em; }
+
+/* 事件详情卡（选中事件 / 聚合点清单共用） */
+.event-detail { border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card);
+  padding: 14px 16px; margin-bottom: 18px; }
+.evd-head { display: flex; align-items: center; gap: 10px; border-left: 2px solid var(--border-hover);
+  padding-left: 10px; }
+.evd-type { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; }
+.evd-time { font-size: 11px; color: var(--text-tertiary); }
+.evd-close { margin-left: auto; background: none; border: none; color: var(--text-faint);
+  font-size: 16px; cursor: pointer; padding: 2px 6px; }
+.evd-close:hover { color: var(--text); }
+.evd-title { margin-top: 10px; font-size: 15px; font-weight: 600; line-height: 1.5; }
+.evd-meta { margin-top: 6px; font-size: 11px; color: var(--text-tertiary); }
+.evd-meta a { color: var(--accent-signature); text-decoration: none; }
+.evd-rel { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.evd-rel-label { font-size: 10px; color: var(--text-faint); letter-spacing: 0.1em; }
+.rel-chip { font-size: 11px; padding: 3px 10px; border: 1px solid var(--border);
+  border-radius: 3px; background: var(--bg-elevated); color: var(--text-secondary); cursor: pointer; }
+.rel-chip:hover { border-color: var(--accent-signature); color: var(--accent-signature); }
+.evd-item { display: flex; align-items: center; gap: 9px; padding: 9px 0 9px 10px;
+  border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12px; }
+.evd-item:last-child { border-bottom: none; }
+.evd-item:hover .evd-item-t { color: var(--accent-signature); }
+.evd-item-t { flex: 1; min-width: 0; color: var(--text-secondary); }
+.evd-item-s { color: var(--text-faint); font-size: 10px; }
+
+/* ==================== 资金动向（龙虎榜行式表） ==================== */
+.lrow-head, .lrow { display: grid; align-items: center; gap: 12px;
+  grid-template-columns: 34px minmax(120px, 1.4fr) 74px 100px 90px 70px 70px minmax(0, 1.6fr); }
+.lrow-head { padding: 8px 0; border-bottom: 1px solid var(--border);
+  font-size: 10px; color: var(--text-faint); letter-spacing: 0.08em; }
+.lrow { padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+.lrow:hover { background: var(--bg-hover); }
+.lr-no { font-size: 10px; color: var(--text-faint); }
+.lr-name { font-size: 13px; font-weight: 500; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lr-code { display: block; font-size: 10px; color: var(--text-faint); }
+.lr-pct, .lr-net, .lr-deal, .lr-d { font-size: 12px; text-align: right;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.lr-tag { font-size: 10px; color: var(--text-tertiary); min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 860px) {
+  .lrow-head, .lrow { grid-template-columns: 26px minmax(100px, 1.4fr) 64px 92px 62px; }
+  .lrow-head span:nth-child(n+6), .lrow .lr-deal, .lrow .lr-d, .lrow .lr-tag,
+  .lrow-head span:nth-child(5) { display: none; }
+}
+
+/* ==================== K线事件卡（点击 marker 弹出） ==================== */
+.chart-event { margin-top: 12px; border: 1px solid var(--border); border-left: 2px solid var(--accent-signature);
+  border-radius: 4px; background: var(--bg-card); padding: 10px 14px; }
+.ce-head { display: flex; align-items: center; gap: 10px; }
+.ce-tag { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; }
+.ce-line { margin-top: 6px; font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+.ce-line a { color: var(--accent-signature); text-decoration: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .globe-stage > div:first-child { animation: none; }
+}

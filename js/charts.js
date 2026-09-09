@@ -64,6 +64,44 @@ const Charts = (() => {
     }));
 
     let lastKlines = [];
+    // 事件标记层（Event-on-Chart）：宏观/新闻/龙虎榜等事件画到对应日期K线上，
+    // 点击 marker 通过 Bus 抛给详情页弹事件卡。数据结构见 js/events.js toChartEvent。
+    let chartEvents = [];
+    const tKey = (t) => typeof t === 'string' ? t
+      : (t && typeof t === 'object' && t.year) ? t.year + '-' + String(t.month).padStart(2, '0') + '-' + String(t.day).padStart(2, '0')
+      : String(t);
+    const tCmp = (a, b) => (typeof a === 'number' && typeof b === 'number') ? a - b
+      : (tKey(a) < tKey(b) ? -1 : tKey(a) > tKey(b) ? 1 : 0);
+
+    function applyMarkers() {
+      if (!candle.setMarkers) return;
+      if (!chartEvents.length) { candle.setMarkers([]); return; }
+      // 只画落在实际K线上的事件（周末/停牌日没有 bar，画不出去还得排序报错）
+      const times = new Set(lastKlines.map(k => tKey(k.time)));
+      const ms = chartEvents
+        .filter(e => times.has(tKey(e.time)))
+        .slice(0, 40)
+        .map(e => ({
+          time: e.time, position: 'aboveBar', shape: 'circle', size: 1,
+          color: e.color || '#D97757', text: e.text || '',
+        }))
+        .sort((a, b) => tCmp(a.time, b.time));
+      candle.setMarkers(ms);
+    }
+
+    function setEvents(list) {
+      chartEvents = Array.isArray(list) ? list : [];
+      applyMarkers();
+    }
+
+    if (typeof chart.subscribeClick === 'function' && window.Bus) {
+      chart.subscribeClick((param) => {
+        const key = param && param.time !== undefined ? tKey(param.time) : null;
+        if (!key) return;
+        const hits = chartEvents.filter(e => tKey(e.time) === key);
+        if (hits.length) window.Bus.emit('chart:event', { time: key, events: hits });
+      });
+    }
     // 默认：MA5 + MA20 + EMA26（配置存 localStorage，详情页菜单可改任意周期 2~500）
     let maLines = [
       { type: 'ma', n: 5, on: true },
@@ -90,7 +128,10 @@ const Charts = (() => {
     }
 
     function setData(klines) {
-      lastKlines = klines || [];
+      // 盘后/清算时段腾讯日K会混入 OHLC 为 null 的脏bar（lightweight-charts 内部直接炸），
+      // 整根剔除：蜡烛/成交量/均线/事件标记共用同一份干净序列
+      lastKlines = (klines || []).filter(k => k && k.time !== null && k.time !== undefined &&
+        [k.open, k.high, k.low, k.close].every(v => v !== null && v !== undefined && isFinite(v)));
       const c = themeColors();
       candle.setData(lastKlines.map(k => ({
         time: k.time, open: k.open, high: k.high, low: k.low, close: k.close,
@@ -104,8 +145,15 @@ const Charts = (() => {
       const closes = lastKlines.map(k => k.close);
       maLines.forEach((l, i) => {
         if (!l.on || lastKlines.length < l.n) { lineSeries[i].setData([]); return; }
-        const seq = l.type === 'ema' ? emaSeries(closes, l.n) : calcMA(lastKlines, l.n);
-        lineSeries[i].setData(seq.filter(p => p.value !== null && Number.isFinite(p.value)));
+        // 两条序列同形为 [{time,value}]：calcMA 原生对象；emaSeries 是数字数组（null 会在
+        // 下面的 p.value 上炸掉——腾讯日K 盘后会出现 null 收盘bar，必须在此归一）
+        const seq = l.type === 'ema'
+          ? emaSeries(closes, l.n).map((v, k) => ({
+              time: lastKlines[k].time,
+              value: (closes[k] === null || closes[k] === undefined) ? null : v,
+            }))
+          : calcMA(lastKlines, l.n);
+        lineSeries[i].setData(seq.filter(p => p && p.value !== null && Number.isFinite(p.value)));
       });
     }
 
@@ -126,7 +174,7 @@ const Charts = (() => {
     }
 
     return {
-      chart, candle, vol, setData, applyTheme, setMAVisible,
+      chart, candle, vol, setData, applyTheme, setMAVisible, setEvents,
       remove() { try { chart.remove(); } catch { /* ignore */ } },
     };
   }
@@ -171,20 +219,28 @@ const Charts = (() => {
     return {
       chart, setData, applyTheme: paint,
       setMAVisible() { /* 分时无 MA */ },
+      setEvents() { /* 分时不画日频事件标记 */ },
       remove() { try { chart.remove(); } catch { /* ignore */ } },
     };
   }
 
-  // MA 均线序列（自算）；emaSeries 复用 Technical（加载序在其后，惰性取用）
+  // MA 均线序列（自算）；窗口内含 null/脏收盘价时该点断线（null 当 0 加会算出假均线）
   function calcMA(klines, n) {
     const out = [];
     let sum = 0;
+    let bad = 0;
     for (let i = 0; i < klines.length; i++) {
-      sum += klines[i].close;
-      if (i >= n) sum -= klines[i - n].close;
+      const c = klines[i].close;
+      if (c === null || c === undefined || !isFinite(c)) bad++;
+      else sum += c;
+      if (i >= n) {
+        const old = klines[i - n].close;
+        if (old === null || old === undefined || !isFinite(old)) bad--;
+        else sum -= old;
+      }
       out.push({
         time: klines[i].time,
-        value: i < n - 1 ? null : +(sum / n).toFixed(3),
+        value: (i < n - 1 || bad > 0) ? null : +(sum / n).toFixed(3),
       });
     }
     return out;
