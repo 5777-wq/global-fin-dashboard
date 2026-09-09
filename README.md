@@ -117,6 +117,19 @@ DOM updates are incremental patches, and nothing ever throws a blank screen at y
 4. **数据失败不是错误**——降级链 + 角标，用户永远看得见一块能看的屏幕；
 5. **只描述事实，不荐股**——技术面和情绪面板全是统计口径，一个"买入"都不说。
 
+## 安卓版 · Android
+
+仓库里的 `android/` 是一个 **WebView 壳工程**（无 Gradle、无 Android Studio 也能构建），
+加载的就是线上同一份页面——收藏/设置走 localStorage 与浏览器一致；App 自身只申请
+`INTERNET` 一个权限，不收集任何设备信息。签名 APK 从
+[Releases](https://github.com/5777-wq/openfinlens/releases) 下载（允许未知来源即可安装）。
+
+```bash
+cd android && bash build.sh
+# 构建链：aapt2 + javac + d8 + uber-apk-signer（便携工具链放 toolchain/，TUNA/阿里云镜像，不用海外 CDN）
+# 产物：OpenFinLens-v1.0.0.apk
+```
+
 ## 自己部署一份 · Deploy your own
 
 1. GitHub 新建公开仓库；
