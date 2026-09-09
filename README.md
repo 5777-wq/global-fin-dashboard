@@ -1,12 +1,18 @@
-# GLOBAL FIN · 全球金融看板
+# OpenFinLens · 全球金融看板（GLOBAL FIN）
 
-浏览器直开的单页金融看板：8 大品类实时行情 + A股全市场热力图 + K线详情 + 滚动新闻 + 产业链追踪 + 机构研报聚合。
+> **openfinlens** = Open + Fin + Lens——"金融透镜"：把散落在腾讯/东财/币安/新浪/世界银行的免费公开数据，
+> 透镜式地聚成一屏可读的全球市场。GitHub 全站同名仓库为 0，名字唯一可寻。
+
+浏览器直开的单页金融看板：8 大品类实时行情 + A股全市场热力图 + K线详情（MA/EMA 自定义·技术面指标）+
+滚动新闻（板块分类）+ 大V喊单 + 产业链追踪 + 概念热度榜 + 世界经济仪表盘。
 原生 HTML/CSS/JS，无框架、无构建、无后端、无 npm。
+
+线上地址：**https://5777-wq.github.io/openfinlens/**
 
 ## 运行
 
 ```bash
-cd global-fin-dashboard && python -m http.server 8765
+cd openfinlens && python -m http.server 8765
 # 打开 http://127.0.0.1:8765/index.html
 ```
 
@@ -197,10 +203,10 @@ node _test/run-all.mjs --offline  # 只跑 logic / insight / breadth（不依赖
 2. 把本目录全部文件推上去：
 
    ```bash
-   cd global-fin-dashboard
+   cd openfinlens
    git init && git add -A && git commit -m "init: global fin dashboard"
    git branch -M main
-   git remote add origin https://github.com/<你的用户名>/global-fin-dashboard.git
+   git remote add origin https://github.com/<你的用户名>/openfinlens.git
    git push -u origin main
    ```
 
@@ -210,7 +216,7 @@ node _test/run-all.mjs --offline  # 只跑 logic / insight / breadth（不依赖
 之后地址**形式固定**为：
 
 ```
-https://<你的用户名>.github.io/global-fin-dashboard/
+https://<你的用户名>.github.io/openfinlens/
 ```
 
 （只有名为 `<用户名>.github.io` 的仓库才落在根路径；普通仓库一律是 `/<仓库名>/` 子路径——本项目
