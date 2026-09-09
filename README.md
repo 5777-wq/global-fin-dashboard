@@ -1,263 +1,156 @@
-# OpenFinLens · 全球金融看板
+<div align="center">
 
-**openfinlens** = Open + Fin + Lens——金融透镜：把散落在腾讯/东财/币安/新浪/世界银行的免费公开数据，
-聚成一屏可读的全球市场。
+# 🔭 OpenFinLens
 
-- 浏览器直开，纯前端：原生 HTML/CSS/JS，无框架、无构建、无后端、无 npm
-- 8 大品类实时行情（A股/港股/美股/加密/外汇/商品/国债收益率/宏观利率）
-- A股全市场热力图 + K线详情（分时/日/周/月，MA/EMA 六线自定义，RSI·MACD·KDJ·BOLL·ATR 技术面）
-- 市场宽度三大温度计（A股 / 加密 / 美股全市场）+ 全球指数卡（日·德·英·法·韩·印）
-- 今日热门概念榜 → 人工维护产业链图谱，两层联动
-- 滚动新闻按板块分类；大V喊单（新闻聚合口径）；世界经济仪表盘（世界银行数据）
-- 所有数据源免密钥、多级降级（主源→备源→缓存），断网也不白屏
+**把散落在一堆免费接口里的全球行情，聚成一屏可读的看板。**
+*Global markets, scraped from a pile of free public APIs, distilled into one readable pane.*
 
-线上地址：**https://5777-wq.github.io/openfinlens/**
+**[线上体验 · Live Demo →](https://5777-wq.github.io/openfinlens/)**
 
-## 运行
+![no build](https://img.shields.io/badge/build-none-000?style=flat-square)
+![no npm](https://img.shields.io/badge/dependencies-0-000?style=flat-square)
+![no backend](https://img.shields.io/badge/backend-none-000?style=flat-square)
+![tests](https://img.shields.io/badge/tests-122_passing-2ebd85?style=flat-square)
+![no keys](https://img.shields.io/badge/API_keys-0-000?style=flat-square)
+
+</div>
+
+---
+
+## 这是什么 · What is this
+
+一个单文件够不着、框架配不上的金融看板：A股 5000+ 只全市场热力图、三大市场情绪温度计、
+K 线 + 技术面、产业链图谱、板块新闻、世界经济仪表盘——全部数据在**你的浏览器里**直连免费公开接口抓取。
+没有服务器，没有数据库，没有 `node_modules` 黑洞。克隆下来，双击 `index.html`，它就活了。
+
+> A financial dashboard that refuses to have a build step: vanilla HTML/CSS/JS, zero dependencies
+> (one vendored charting lib), zero API keys, everything fetched client-side from free public endpoints.
+> Clone it, double-click `index.html`, done.
+
+## 快速开始 · Quick start
 
 ```bash
-cd openfinlens && python -m http.server 8765
-# 打开 http://127.0.0.1:8765/index.html
+git clone https://github.com/5777-wq/openfinlens.git
+cd openfinlens
+# 方式一：直接双击 index.html（所有数据源 CORS 全通，file:// 也能跑）
+# 方式二：本地服务器
+python -m http.server 8765   # → http://127.0.0.1:8765
 ```
 
-直接双击 `index.html`（file://）也能跑：所有数据源都返回 `Access-Control-Allow-Origin`（含 `Origin: null`），已实测可用。
-用本地静态服务器只是为了避免个别浏览器对 file:// 的额外限制。
+## 都有什么 · Features
 
-## 数据源与降级链
+| | 功能 | 说明 |
+|---|---|---|
+| 🖥️ | **行情总览** | 8 大品类 47 个核心标的，10s 轮询，红涨绿跌可切换（全球市场 hero + 六大指数卡：日·德·英·法·韩·印，带国旗） |
+| 🔥 | **全市场热力图** | A股 ~5500 只 + 加密 80 币，手写 squarify + canvas；滚轮以光标为锚缩放、拖拽平移、双指捏合、右键复位 |
+| 📈 | **K线详情** | 分时/日/周/**月**，成交量副图，MA5/10/20/60 + EMA12/26 六线自由开关（localStorage 记忆） |
+| 🧪 | **技术面面板** | RSI(14) · MACD(12,26,9) · KDJ(9,3,3) · BOLL(20,2) · ATR(14) · 量比 · 均线排列——每条都是日K手算，附常用读法，绝不荐股 |
+| 🌡️ | **市场宽度 ×3** | A股（~5500 只）/ 美股（~13800 只全量）/ 加密（80 对）三块情绪温度计，涨跌家数、七段分布、A股含涨跌停分板判定 |
+| 🗺️ | **产业链图谱** | 10 条链 · 49 个环节 · 163 只成分股（逐一实测代码），环节强度 = 成分股涨跌幅实时均值 |
+| 📡 | **今日热门概念** | 东财 500+ 概念板块实时涨幅榜 → 命中人工链条直接跳转，未命中展开领涨成分股兜底 |
+| 📰 | **板块新闻 + 大V喊单** | 新闻按产业链板块分类过滤；马斯克/特朗普/黄仁勋/奥尔特曼等 10 人发言动向聚合（新闻口径，诚实标注） |
+| 🌍 | **世界经济仪表盘** | 世界银行 API：美中日德英法印韩 × GDP/增长/通胀/失业/债务/经常账户，列内色阶热图 |
+| ⭐ | **自选 + 搜索** | 跨市场收藏（localStorage）、组合概览、按涨跌幅排序；搜索支持中文/代码/拼音 |
+| ⌨️ | **细节** | 市场时段徽章（夏令时正确）、hash 深链、键盘 1-9/0 切 tab、`/` 搜索、`Backspace` 返回、开屏真实进度条 |
 
-每个品类都是「主源 → 备源 → 内存缓存」，任一环节失效自动下沉，页面永不白屏；
-使用备源或缓存时，卡片右上角显示 2px 签名色圆点（hover 有说明），页脚汇总各源状态。
+## 它怎么工作 · How it works
+
+```
+浏览器（纯客户端）
+├── sources/  每类数据一个适配器，统一输出 Quote 结构
+│     主源 ──失败──▶ 备源 ──失败──▶ localStorage 缓存（带时间戳）
+│                                    │
+├── app.js    轮询调度（setTimeout 链）→ 增量 patch DOM，不整墙重建
+├── treemap/charts/technical  纯函数计算层，全部可单测
+└── 永不白屏：任何一层挂掉都是"降级角标 + 旧数据/骨架"，绝无弹窗报错
+```
+
+*Every data category goes through an adapter chain: primary → fallback → cached, with a tiny
+badge telling you when you're not looking at live data. The scheduler is a `setTimeout` chain,
+DOM updates are incremental patches, and nothing ever throws a blank screen at you.*
+
+## 数据源 · Data sources（全部免密钥）
 
 | 品类 | 主源 | 备源 | 兜底 |
 |---|---|---|---|
-| A股 / 港股 / 美股 / 全球指数 | 腾讯 `qt.gtimg.cn`（GBK） | 东财 `push2delay` secid | 缓存 |
-| A股全市场（热力图 ~5500 只） | 东财 `clist`（分页并发，每页 100） | 腾讯精选兜底 | 缓存 |
-| 加密货币 | 币安 `data-api.binance.vision` | OKX | 缓存 |
-| 外汇 / 大宗商品 / 宏观利率 | 东财 secid（`119/133`、`101-103`、`171`） | 新浪（需代理） | 缓存 |
-| K线（日/周） | 腾讯 `ifzq` fqkline（前复权） | 东财 `push2delay` → `push2his`（后者需代理） | 空态提示 |
-| 分时 | 腾讯 `minute/query` | 降级为日K，不白屏 | 空态提示 |
-| 滚动新闻 | 新浪 roll（JSONP） | 东财 `np-listapi` | 缓存（60s） |
-| 机构研报 | 东财 `reportapi` | 缓存（10min） | 隐藏研报区 |
-| 搜索 | 东财 `searchapi`（JSONP，中文/代码） | `search-codetable`（拼音） | 空态提示 |
-| 产业链 | 静态定义 + 统一行情源 | 东财 secid | 环节显示 `--` |
-| 市场宽度 / 情绪 | 复用热力图同一份全市场数据（不额外发请求） | 腾讯精选兜底 | 缓存 + 时间戳 |
+| A股 / 港股 / 美股 / 全球指数 | 腾讯 `qt.gtimg.cn`（GBK） | 东财 `push2delay` | 缓存 |
+| A股全市场（热力图/宽度） | 东财 `clist` 分页并发 | 腾讯精选 | 缓存 |
+| 美股全市场（宽度） | 东财 `m:105,106,107`（~13800 只全量） | — | 缓存 5min |
+| 加密 | 币安 `data-api.binance.vision` | OKX | 缓存 |
+| 外汇 / 商品 / 国债收益率 | 东财 secid（119/133、101-103、171） | 新浪（需代理） | 缓存 |
+| K线 / 分时 | 腾讯 `ifzq`（前复权） | 东财 → 空态 | 不白屏 |
+| 概念板块榜 / 成分股 | 东财 `clist`（`m:90+t:3` / `b:BKxxxx`） | — | 隐藏榜单 |
+| 新闻 | 新浪 roll（JSONP） | 东财 `np-listapi` | 缓存 60s |
+| 宏观年度指标 | 世界银行 `api.worldbank.org` | — | 缓存 24h |
+| 搜索 | 东财 searchapi（中文/代码） | codetable（拼音） | 空态 |
 
-### 与原始施工文档的偏差（均为实测后的必要替换）
+## 踩坑实录 · Field notes
 
-开工前逐个 curl 验证了文档给的接口，以下几个在当前网络/浏览器环境下不可用，已按文档「故障决策树」替换为等价可用源，
-适配器接口与统一 `Quote` 结构保持不变：
+这些坑都是逐个接口 curl 出来的，写在这里省下下一个人的一个下午：
 
-- `push2.eastmoney.com` / `push2his.eastmoney.com` 直连不可达 → 换 `push2delay.eastmoney.com`（带 CORS 头）。
-  另实测 `clist` 单页最多返回 100 条（`pz=6000` 会被截断成 100），全市场改为分页并发抓取。
-- `www.okx.com`、`api.binance.com` 均超时 → 加密主源换 `data-api.binance.vision`（同为币安官方域、CORS `*`）；
-  `okx.js` 适配器完整保留，作为备源，换网络或配代理即可生效。
-- `hq.sinajs.cn` 无 `Referer` 返回 403，而浏览器 `fetch` 不能自定义 `Referer` → 外汇/商品主源改用东财 secid；
-  `sina.js` 保留，仅在配置了 `window.PROXY` 时启用（Worker 会补 `Referer`）。
-- 新浪 roll 接口无 CORS 头但支持 `callback=` → 走 JSONP。注意回调名**不能以下划线开头**，否则返回
-  `callback illegal character`（这点花了一次排查，已写进 `utils.js` 注释）。
-- 东财新闻 `np-listapi` 必须带 `req_trace` 参数，否则报 `Required String parameter 'req_trace' is not present`。
-- 美股 K线：`param=usAAPL` 只返回 2 根脏数据，必须用带交易所后缀的完整代码（`usAAPL.OQ`）；
-  已在 `tencent.js` 里自动补后缀重试。
-- 热力图 treemap 用标准 squarify 实现（仍为手写、零依赖）：文档 5.3 的两段切割简化版在 5000 块时纵横比失控成长条，不可读。
-- 宏观利率不依赖 FRED：改用东财 `171.*` 国债收益率 secid（美/中/德/日/英 10 年期等），无需任何 API key。
-  `fred.js` 保留，`API_KEY` 为空则返回空数组、界面不显示该卡片（前端不写任何真实 key）。
+- 东财 `push2/push2his` 直连不可达 → 用 `push2delay` 镜像（带 CORS）；但它**不存历史 K 线**（`klines` 恒空），
+  外汇/商品的日K 至今没有免费直连源——详情页对这些品类诚实显示空态。
+- `pz=6000` 会被截断成 100：全市场抓取是 56 页分页并发 + 盘中按代码去重（排序分页时个股会位移）。
+- 美股 K线必须用带交易所后缀的代码（`usAAPL.OQ`），裸代码只回 2 根脏数据——已自动补后缀重试。
+- 新浪 JSONP 的回调名**不能以下划线开头**（`callback illegal character`）；东财新闻必须带 `req_trace` 参数。
+- 深夜清算时段东财把涨跌幅回成 `"-"` 字符串：按数值过滤会把全市场清空，必须允许缺失（显示 `--`）。
+- 美股宽度必须**全量抓 13800 只**：按涨跌幅排序分页只取前段，统计的是"跌幅榜"不是市场。
 
-## 代理（可选）
+## 家规 · House rules
 
-默认全部直连即可运行。只有两种情况需要部署 `worker.js`（Cloudflare Worker）：
-想启用新浪源，或部署环境访问不到某些直连域名。
+这份代码有几条雷打不动的自律（也解释了为什么它长得这样）：
 
-```bash
-wrangler deploy worker.js
-```
+1. **不用 `setInterval`**——调度走 `setTimeout` 链，动画走 `requestAnimationFrame`；
+2. **不动画 `width/height/top/left/box-shadow`**——只碰 `transform/opacity/color`，让合成器干活；
+3. **前端零 API key**——拿不到免费数据的（如 FRED）宁可隐藏也不塞密钥；
+4. **数据失败不是错误**——降级链 + 角标，用户永远看得见一块能看的屏幕；
+5. **只描述事实，不荐股**——技术面和情绪面板全是统计口径，一个"买入"都不说。
 
-然后在 `index.html` 的 `js/proxy.js` 之前加一行：
+## 自己部署一份 · Deploy your own
 
-```html
-<script>window.PROXY = 'https://<你的worker>.workers.dev/';</script>
-```
+1. GitHub 新建公开仓库；
+2. `git push` 上去；
+3. Settings → Pages → Source 选 `Deploy from a branch`（`main` / root）→ Save。
 
-Worker 内置域名白名单（避免成为开放代理）、按站点补 `Referer`/`UA`、边缘缓存 10-30s，并原样透传 GBK 的 `Content-Type`。
+一分钟后固定地址：`https://<你的用户名>.github.io/<仓库名>/`
+（相对路径 + hash 路由，任意子路径即开即用；`.nojekyll` 已备好，`_test/` 不会被 Jekyll 吞。）
 
-⚠ 限速风险提示：Cloudflare 免费套餐每日 10 万次请求上限，多人使用或高频刷新会触顶；
-且所有流量经 Worker 出口 IP 中转，上游（腾讯/东财/新浪）若对数据中心 IP 限速或封禁，
-会出现整片降级——届时优先换回直连模式（去掉 `window.PROXY`）排查。Worker 定位为可选备援，不是默认路径。
+可选：部署 `worker.js`（Cloudflare Worker）作为代理备援，启用新浪源——默认直连即可跑，Worker 不是必需品。
 
-## 设计语言（第六轮重构）
-
-版式基准来自对 Linear / Vercel / Stripe / finviz 的实测研究（3 个研究代理抓取线上 CSS 提取 token），
-目标是"编辑部级终端"而非 SaaS 卡片墙：
-
-- **hairline 行式行情表**代替卡片网格：每标的一行，1px 发丝线分隔、右对齐 mono 数字、显式 +/-
-- **字号极端对比**：10px 大写宽字距标签 ↔ 30px hero 主数字 / 56px 情绪指数，其余 ≤15px
-- **全站数字 mono + tabular**（`.num` 一处定义全局生效），小数位恒定
-- **栏目编号**（01/02/03 + 弹性细线）、新闻行号（001 起）、来源小型大写置尾
-- **圆角 6/3px 两档**，胶囊按钮清零；签名橙 ≤5 处（tab 下划线/星标/聚焦/品牌点/进度条）
-- 留白不对称：区间 56 / 组间 24 / 组内 8
-
-## 功能
-
-- **进入页面**：品牌开屏（九宫格点阵 + 字标分镜入场 + 连接进度条），数据就绪后整体淡出、
-  顶栏/标题/卡片分层入场；最短展示 600ms、2.6s 硬上限、点击可跳过、
-  `prefers-reduced-motion` 下整个不出现；tab 切换各视图带 8px 上浮过场。
-- **骨架屏**：首屏卡片墙 / 热力图 / 新闻列表在数据到达前显示 opacity 呼吸骨架（不白屏）。
-- **卡片墙**：8 品类分组，桌面 4 列 / 移动 2 列，`tabular-nums` 防跳动；数值变化 0.3s 颜色闪动（只改 `color`）。
-- **市场时段徽章**：A股 / 港股 / 美股 / 加密各组卡片标题旁显示 交易中 / 午间休市 / 已收盘 / 周末休市
-  （`Intl` 时区换算，美股夏令时自动正确；按常规时段计算，不含节假日）。
-- **hash 深链**：`#tab=mood`、`#symbol=sh600519` 直达对应视图，浏览器后退 / 前进可用
-  （`pushState`，`file://` 被拒时自动退回 `location.hash`）。
-- **键盘快捷键**：`1-9`/`0` 切 tab、`/` 聚焦搜索、详情页 `Backspace`/`Esc` 返回（输入框内不劫持）。
-- **热力图**：A股全市场（~5500 块）与加密市值两个视图，canvas 渲染 + squarify 布局；
-  **滚轮缩放（以光标为锚点，最大 12×）· 拖拽平移（抓取语义，内容跟手）· 右键/按钮复位 · 触屏单指拖动、双指捏合**；
-  放大后小块自动显示名称与涨跌幅（字号适度放大并封顶）；左上角 GLOBAL FIN 水印；
-  hover 浮层、触屏长按、点击进详情（拖拽结束不误触详情）；视口数学抽为纯函数并有方向/锚点/钳制断言（`Treemap.viewport`）；面积可切「市值 / 涨跌幅」；30s 刷新只换色不重排。
-- **详情页**：分时 / 日K / 周K + MA5/MA20 + 成交量副图（lightweight-charts），个股附带相关研报与评级标签。
-- **搜索**：250ms 防抖，中文 / 代码 / 拼音三种输入，↑↓ 选择、回车进第一个。
-- **自选**：跨市场收藏，存 localStorage，刷新与重开后保留；顶部显示组合概览（等权平均涨跌 + 内部涨跌家数）。
-- **设置**：红涨绿跌 ⇄ 绿涨红跌（卡片 / 热力图 / K线三处同步）、刷新间隔 5/10/30s、降级角标开关。
-- **新闻流**：60s 增量刷新，按市场 tab 过滤（加密走关键词过滤，不单独接源），顶部搜索框可实时过滤标题。
-- **产业链**：新能源车 / 半导体 / AI算力 / 光伏 / 消费电子 / 创新药 / 军工 / 机器人 / 储能 / 信创
-  **10 条链、49 个环节、163 只成分股**（全部实测校验过真实代码与名称，允许跨链复用）；
-  每个环节配一句"这是干嘛的"科普解释；环节强度 = 成分股涨跌幅简单平均，点击环节展开成分股行情。
-- **研报**：最新研报流 + 评级着色（买入=涨色 / 增持=签名色 / 中性=灰 / 减持=跌色）。
-- **小白学院（科普层）**：详情页内置三类内容——
-  ① "这是什么"：41 个常设标的 + 6 大主流币的一句话解释，其余标的按品类兜底；
-  ② 标的画像：近一年涨跌 / 距一年最高点 / 年化波动率 / 趋势位置（全部由日K客观数据算出）；
-  ③ 大师视角（针对本标的具体分析）：8 位大师（巴菲特/芒格/格雷厄姆/彼得·林奇/索罗斯/达里奥/欧奈尔/利弗莫尔）
-  各有一套评估函数，输入=该标的的属性表（生意本质/护城河/林奇五分类/主要风险/反身性，人工维护 47 条）
-  + 日K画像（年涨跌/52周位置/年化波动/趋势），输出"事实 → 视角 → 数据缺口"三段式分析：
-  事实（签名色标注）来自真实数据，视角用大师框架解读，缺口明确告诉你"这个数要看财报"。
-  欧奈尔对贴近新高的票和深回撤的票会说不同的话；索罗斯只在反身性强的票上谈"自我强化循环"。
-  定位仍是教"怎么提问"，绝无买卖建议；不同标的看到的分析完全不同。
-  产业链 20 个环节各配一句通俗解释（悬浮可见，展开时显示在成分股上方）。
-- **市场宽度 / 情绪**：0-100 情绪温度计（三档色带 + count-up）、涨跌家数 / 涨停跌停 / 平均与中位涨跌幅 / 两市成交额、
-  涨跌幅七段分布条。数据与热力图共用同一份全市场结果，不额外发请求。
-
-  情绪指数口径：`上涨 ÷ (上涨 + 下跌) × 100`。刻意剔除平盘——停牌与一字板会灌大分母，
-  把普涨日的分数压低。全平盘或无有效数据时显示 `--`，不伪造 50。
-  涨跌停判定**先板块后 ST**：创业板/科创板 ±20%（含 ST）、北交所 ±30%、主板 ST ±5%、主板 ±10%，
-  阈值下浮 0.3pct 容错真实封板价；N/C 前缀新股（无涨跌幅限制期）不计入涨跌停。
-  ⚠️ 该口径无法区分"封死"与"涨幅大"（clist 免费字段无当日最高价），格子语义是"触及涨跌停附近"。
-- **情绪走势（本机时间序列）**：情绪页自动把每日情绪指数快照存进 localStorage（同日覆盖、保留 90 天、
-  全市场样本 <3000 只不入库），手写 SVG sparkline 展示近 30 日走势与"回暖/转冷"。
-  方法论参考 [bankrollhunter/market-breadth](https://github.com/bankrollhunter/market-breadth) 的宽度时间序列；
-  数据只在本机积累，首日打开只有当天一个点。
-
-只做机构级聚合（列表 + 评级 + 个股关联），研报全文与盈利预测免费源拿不到，不做假数据。
-
-## 无障碍与降级
-
-- `prefers-reduced-motion: reduce`：全站禁用动画，功能完整。
-- `pointer: coarse`：加大触控目标。
-- 卡片与产业链环节可 Tab 聚焦、Enter/Space 触发（卡片内星标走按钮原生激活）；弹层 Esc 关闭、
-  Tab 焦点陷阱、关闭后焦点归还；tab 带 `aria-controls`，面板带 `role="tabpanel"`；
-  次要/第三级文字对比度提升至 ≥4.5:1，激活态改深字（白字压签名色仅 3.12:1）。
-- 禁用 JS 时 `<noscript>` 显示提示文案。
-- 页面隐藏时暂停所有轮询（`visibilitychange`），回到前台立即补一次。
-
-完整的 WCAG 合规需要真实辅助技术测试与专家评审，这里只保证了上述可自动验证的部分。
-
-## 自检与测试
-
-页面顶部「数据源自检」折叠区实时显示 9 个代表标的的取数结果、各源状态、热力图块数与新闻/研报条数。
-
-`_test/` 下有三组可直接跑的校验脚本（纯 Node，无需装依赖）：
+## 测试 · Tests
 
 ```bash
-node _test/logic.test.mjs    # 26 项：treemap 面积守恒/纵横比、色阶、格式化边界、MA 手算、产业链平均、关键词过滤
-node _test/insight.test.mjs  # 16 项：图表时区口径、画像手算核对、解释表完整性、表述安全性
-node _test/evolve.test.mjs   # 11 项：市场时段四态、情绪历史、sparkline、请求去重、热力图视口（拖动跟手/锚点/钳制）
-node _test/live.test.mjs     # 17 项：实网逐源验证、76 只成分股代码核对、CORS 头
-node _test/detail.test.mjs   # 10 项：三周期 K线口径、分时时间轴、MA 与真实数据核对、字段类型严格性
-node _test/breadth.test.mjs  # 14 项：情绪指数口径、七段分布求和守恒与边界归桶、涨跌停分板块判定
-node _test/degrade.test.mjs  # 10 项：七条降级链逐条改坏主源实测 + 全源崩溃时的最坏情况
+node _test/run-all.mjs            # 全部 9 组 122 项
+node _test/run-all.mjs --offline  # 只跑离线 4 组 65 项（断网/CI 友好）
 ```
 
-七组共 104 项，当前全部通过。`live` / `detail` / `breadth` / `degrade` 依赖实时行情，
-非交易时段数值会变，但断言基于结构、口径与自洽性，不依赖具体价格。
+纯 Node 零依赖。覆盖：treemap 面积守恒与视口数学、情绪指数口径与七段分布守恒、技术指标手算核对
+（RSI 的 Wilder 平滑、MACD、KDJ、BOLL 的 σ 都有构造序列对账）、时区口径、降级链逐条改坏主源实测、
+实网逐源探活、概念榜黑名单、产业链成分股代码真实性。`live/breadth/boards` 组依赖实时行情，
+深夜清算时段会自动跳过数值断言——它们不依赖具体价格，只盯结构和口径。
 
-一键全跑（或只跑离线组）：
+## 已知短板 · Known limitations
 
-```bash
-node _test/run-all.mjs            # 全部六组
-node _test/run-all.mjs --offline  # 只跑 logic / insight / breadth（不依赖网络，适合 CI 或断网环境）
-```
+- 免费接口有延迟（东财 `push2delay` 名字里就写着 delay），**不构成投资建议**；
+- 外汇/商品的日K 无免费直连源（详见踩坑实录第一条），报价与情绪不受影响；
+- 加密"市值"用 24h 成交额代理——真实流通量免费拿不到；
+- 美股分时盘前盘后只有 1 个点（上游限制），会自动降级为日K；
+- 上游随时改字段：哪天整片降级，先跑 `node _test/live.test.mjs`，它比用户先知道谁挂了。
 
-## 开源与部署到 GitHub Pages
+## 免责声明 · Disclaimer
 
-### 开源前安全自查（2026-09-07/08 结论：可安全开源）
+本项目**仅供个人学习与技术研究，不构成任何投资建议**。
+所有行情与资讯来自第三方公开接口，可能延迟、中断或出错；据此交易的后果自负。
+*For learning and research only. Not investment advice. Data comes from third-party public
+endpoints and may be delayed or wrong. Trade at your own risk.*
 
-- 源码**无任何密钥类字符串**：FRED 功能采用运行时配置注入（`window.FRED_CONFIG`，不配置则自动隐藏）；
-  全库检索无凭据类常量；`worker.js` 无敏感信息，仅上游域名白名单。
-- 无个人信息、无后端、无数据库：数据在访问者浏览器内抓取与存储（localStorage 仅存自选/设置/情绪快照）。
-- 第三方依赖仅 `lib/lightweight-charts`（TradingView，Apache-2.0，可再分发，文件内保留版权头）。
-- 上游数据来自第三方公开接口（GET 行情/新闻），仅供学习——根目录**免责声明**对使用者持续可见。
-- 输入防御：拼接进行情地址的代码参数按交易所格式白名单校验（分时/K线入口均已闭合）；
-  新闻与研报外链仅放行 http(s) 协议；所有插值字段统一 HTML 转义。
-  内置安全扫描 2026-09-08 复核：0 项高危；剩余 10 条 medium 为扫描器对浏览器端
-  数组排序与固定主机请求的模式误报（本项目无后端、无数据库），复扫报告已归档。
-- `.gitignore` 已排除本机工具目录（`.mimosa/` 等）与临时产物；`CODE-REVIEW-*.html` 为内部评审记录，
-  无敏感信息，是否随仓库公开由维护者自行决定。
+---
 
-协议：[MIT](LICENSE)。
+<div align="center">
 
-### 部署三步（免构建，推上去就能跑）
+**技术栈：** 原生 HTML/CSS/JS · [lightweight-charts](https://github.com/tradingview/lightweight-charts) v4.2.3（vendored, Apache-2.0）· 手写 squarify · 世界银行/腾讯/东财/币安/新浪 公开接口
 
-1. 在 GitHub 新建**公开仓库**（名字随意，下文以 `openfinlens` 为例）；
-2. 把本目录全部文件推上去：
+*如果它帮你省了一个付费行情软件的订阅，star 就是最好的咖啡。*
+*If this saved you a market-data subscription, a star is the cheapest coffee.* ☕
 
-   ```bash
-   cd openfinlens
-   git init && git add -A && git commit -m "init: global fin dashboard"
-   git branch -M main
-   git remote add origin https://github.com/<你的用户名>/openfinlens.git
-   git push -u origin main
-   ```
-
-3. 仓库 **Settings → Pages → Build and deployment → Source 选 `Deploy from a branch`，
-   Branch 选 `main` / `/(root)` → Save**（首次部署约 1-2 分钟生效）。
-
-之后地址**形式固定**为：
-
-```
-https://<你的用户名>.github.io/openfinlens/
-```
-
-（只有名为 `<用户名>.github.io` 的仓库才落在根路径；普通仓库一律是 `/<仓库名>/` 子路径——本项目
-全部资源为相对路径、路由走 `#` hash，子路径下即开即用，无需任何配置。）
-
-### Pages 部署注意事项
-
-- 仓库已含 `.nojekyll`：跳过 Jekyll 处理，避免 `_test/` 等下划线目录被忽略。
-- 建议在 Settings → Pages 勾选 **Enforce HTTPS**（所有数据源均支持 https）。
-- 更新版本：改完文件直接 `git push`，Pages 自动重新发布；本地资源带 `?v=` 版本号，
-  改 JS/CSS 后记得同步更新 index.html 里的版本号避免访客拿到旧缓存。
-- **不需要** Cloudflare Worker：所有数据源从 github.io 域名直连可用（已实测 CORS 通过）；
-  仅当想启用新浪源时才按前文部署 Worker，并把 `window.PROXY` 指向它。
-- 免责声明会随页面开源分发，请保留（数据来自第三方公开接口，仅供学习，非投资建议）。
-
-## 免责声明
-
-本项目**仅供个人学习与技术研究使用，不构成任何投资建议**。
-所有行情、新闻、研报数据均来自第三方公开接口，可能延迟、中断或存在错误（东财 `push2delay` 为延时行情）。
-据此进行的任何投资决策与后果由使用者自行承担。请勿将本看板用于实际交易决策。
-
-## 已知限制
-
-- 行情来自第三方公开接口，有延迟，**仅供参考，不构成投资建议**。
-- 美股分时在盘前/盘后只返回 1 个点（上游限制），此时分时图接近空图；日K/周K 不受影响。
-- 加密「市值」用 24h 成交额（`quoteVolume`）代理，免费接口拿不到真实流通量。
-- 热力图「按行业分组」未做：东财 `clist` 的 `fs` 参数按板块拉取需要逐板块请求，与「一次拿全市场」冲突，
-  按文档要求「做不了就隐藏开关，不许硬凑」，故不提供该开关。
-- 两市成交额只统计沪深京 A 股（与行情软件"两市成交"口径可能有差异，不含基金与债券）。
-- 涨跌家数与行情软件可能有几十家误差：本项目统计范围是沪深京 A 股约 5500 只，
-  部分软件会包含北交所以外的其它品种或剔除当日新股。
-- 图表时间轴口径：lightweight-charts 对秒级时间戳一律按 UTC 渲染，本项目把"本地墙钟"编码成伪 UTC
-  传入（`U.toChartTime`），分时与分钟线因此显示用户本地时间。若你的用户群不在东八区，显示的是访问者的本地时区。
-- 本地资源带 `?v=` 版本号；改完 JS/CSS 若浏览器仍显示旧行为，改一下这个版本号即可强制刷新缓存。
-- 详情页图表区在无数据时显示"暂无该周期数据"占位（曾因 CSS `display:grid` 覆盖 `hidden` 属性而常显，已修）。
-- 上游接口随时可能改字段或封 IP；出现整片降级角标时优先检查 `_test/live.test.mjs` 的输出定位是哪一源。
-- 外汇 / 大宗商品 / 宏观利率的**日 K 线无免费直连源**（2026-08-31 逐源实测：`push2his` 直连不可达、
-  `push2delay` 镜像不存历史 K 线（`klines` 恒空）、`push2hisdelay` 不承载 kline API、新浪外汇 K 线接口已失效、
-  腾讯 ifzq 不支持外汇品类）。直连模式下这些标的的详情页图表显示"暂无该周期数据"空态，报价与画像不受影响；
-  部署 Cloudflare Worker 代理后由 `push2his` 接管恢复。
+</div>
