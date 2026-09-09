@@ -199,7 +199,7 @@ node _test/run-all.mjs --offline  # 只跑 logic / insight / breadth（不依赖
 
 ### 部署三步（免构建，推上去就能跑）
 
-1. 在 GitHub 新建**公开仓库**（名字随意，下文以 `global-fin-dashboard` 为例）；
+1. 在 GitHub 新建**公开仓库**（名字随意，下文以 `openfinlens` 为例）；
 2. 把本目录全部文件推上去：
 
    ```bash
