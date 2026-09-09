@@ -57,31 +57,27 @@ const Charts = (() => {
     });
     chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 }, visible: false });
 
-    // overlay 槽：MA5/10/20/60 + EMA12/26，键与颜色一一对应（编辑部配色：签名橙只给 MA5）
-    const OVERLAYS = {
-      ma5:   { color: accent, type: 'ma', n: 5 },
-      ma10:  { color: '#5b8def', type: 'ma', n: 10 },
-      ma20:  { color: '#3fae72', type: 'ma', n: 20 },
-      ma60:  { color: '#b06ad4', type: 'ma', n: 60 },
-      ema12: { color: '#e0a83c', type: 'ema', n: 12 },
-      ema26: { color: '#4db6ac', type: 'ema', n: 26 },
-    };
-    const lineSeries = {};
-    Object.keys(OVERLAYS).forEach(key => {
-      lineSeries[key] = addSeries(chart, 'Line', {
-        color: OVERLAYS[key].color, lineWidth: 1,
-        lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
-      });
-    });
+    // 6 条均线槽位，颜色固定按槽位；类型与周期由外部配置驱动（详情页菜单可改任意周期）
+    const LINE_COLORS = [accent, '#5b8def', '#3fae72', '#b06ad4', '#e0a83c', '#4db6ac'];
+    const lineSeries = LINE_COLORS.map(color => addSeries(chart, 'Line', {
+      color, lineWidth: 1, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+    }));
 
     let lastKlines = [];
-    // 默认开启：MA5 + MA20 + EMA26（用户可在详情页均线菜单里自定义，存 localStorage）
-    let maCfg = { ma5: true, ma10: false, ma20: true, ma60: false, ema12: false, ema26: true };
+    // 默认：MA5 + MA20 + EMA26（配置存 localStorage，详情页菜单可改任意周期 2~500）
+    let maLines = [
+      { type: 'ma', n: 5, on: true },
+      { type: 'ma', n: 10, on: false },
+      { type: 'ma', n: 20, on: true },
+      { type: 'ma', n: 60, on: false },
+      { type: 'ema', n: 12, on: false },
+      { type: 'ema', n: 26, on: true },
+    ];
 
     function applyTheme() {
       const c = themeColors();
       candle.applyOptions({ upColor: c.up, downColor: c.down, wickUpColor: c.up, wickDownColor: c.down });
-      Object.keys(OVERLAYS).forEach(key => lineSeries[key].applyOptions({ color: OVERLAYS[key].color }));
+      lineSeries.forEach((s, i) => s.applyOptions({ color: LINE_COLORS[i] }));
       if (lastKlines.length) setVolume(lastKlines, c);
     }
 
@@ -106,19 +102,26 @@ const Charts = (() => {
 
     function renderMA() {
       const closes = lastKlines.map(k => k.close);
-      Object.keys(OVERLAYS).forEach(key => {
-        const o = OVERLAYS[key];
-        if (!maCfg[key] || lastKlines.length < o.n) { lineSeries[key].setData([]); return; }
-        const seq = o.type === 'ema' ? emaSeries(closes, o.n) : calcMA(lastKlines, o.n);
-        lineSeries[key].setData(seq.filter(p => p.value !== null && Number.isFinite(p.value)));
+      maLines.forEach((l, i) => {
+        if (!l.on || lastKlines.length < l.n) { lineSeries[i].setData([]); return; }
+        const seq = l.type === 'ema' ? emaSeries(closes, l.n) : calcMA(lastKlines, l.n);
+        lineSeries[i].setData(seq.filter(p => p.value !== null && Number.isFinite(p.value)));
       });
     }
 
     function setMAVisible(v) {
-      // 兼容旧布尔调用：true/false → 全开/全关；传对象则按 key 开关
-      maCfg = typeof v === 'object' && v !== null
-        ? Object.assign({}, maCfg, v)
-        : Object.keys(OVERLAYS).reduce((o, k) => (o[k] = !!v, o), {});
+      if (Array.isArray(v)) {
+        // 新配置：[{type:'ma'|'ema', n, on}, ...]（槽位数量可少于 6，缺省槽关闭）
+        maLines = LINE_COLORS.map((_, i) => {
+          const l = v[i] || {};
+          const n = Math.max(2, Math.min(500, Math.round(+l.n || 5)));
+          return { type: l.type === 'ema' ? 'ema' : 'ma', n, on: !!l.on };
+        });
+      } else if (v && typeof v === 'object') {
+        maLines = maLines.map(l => Object.assign({}, l));   // 未知对象：保持现状
+      } else {
+        maLines = maLines.map(l => Object.assign({}, l, { on: !!v }));   // 旧布尔：全开/全关
+      }
       renderMA();
     }
 

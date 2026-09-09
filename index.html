@@ -18,7 +18,7 @@ setTimeout(function () {
   if (s && s.parentNode) s.parentNode.removeChild(s);
 }, 2600);
 </script>
-<link rel="stylesheet" href="css/style.css?v=20260909f">
+<link rel="stylesheet" href="css/style.css?v=20260909g">
 </head>
 <body data-updown="red">
 
@@ -121,14 +121,14 @@ setTimeout(function () {
         <button class="pill" data-period="week">周K</button>
         <button class="pill" data-period="month">月K</button>
         <span class="ma-wrap">
-          <button class="pill active" id="maToggle" title="选择叠加的均线">均线 ▾</button>
+          <button class="pill active" id="maToggle" title="叠加均线：勾选开关，数值可改（2~500）">均线 ▾</button>
           <span class="ma-menu" id="maMenu" hidden>
-            <label><input type="checkbox" data-maopt="ma5"> MA5 <i style="background:#D97757"></i></label>
-            <label><input type="checkbox" data-maopt="ma10"> MA10 <i style="background:#5b8def"></i></label>
-            <label><input type="checkbox" data-maopt="ma20"> MA20 <i style="background:#3fae72"></i></label>
-            <label><input type="checkbox" data-maopt="ma60"> MA60 <i style="background:#b06ad4"></i></label>
-            <label><input type="checkbox" data-maopt="ema12"> EMA12 <i style="background:#e0a83c"></i></label>
-            <label><input type="checkbox" data-maopt="ema26"> EMA26 <i style="background:#4db6ac"></i></label>
+            <label><input type="checkbox" data-maline="0"> MA <input type="number" min="2" max="500" data-man="0"> <i style="background:#D97757"></i></label>
+            <label><input type="checkbox" data-maline="1"> MA <input type="number" min="2" max="500" data-man="1"> <i style="background:#5b8def"></i></label>
+            <label><input type="checkbox" data-maline="2"> MA <input type="number" min="2" max="500" data-man="2"> <i style="background:#3fae72"></i></label>
+            <label><input type="checkbox" data-maline="3"> MA <input type="number" min="2" max="500" data-man="3"> <i style="background:#b06ad4"></i></label>
+            <label><input type="checkbox" data-maline="4"> EMA <input type="number" min="2" max="500" data-man="4"> <i style="background:#e0a83c"></i></label>
+            <label><input type="checkbox" data-maline="5"> EMA <input type="number" min="2" max="500" data-man="5"> <i style="background:#4db6ac"></i></label>
           </span>
         </span>
       </div>
@@ -269,26 +269,26 @@ setTimeout(function () {
 
 <!-- 图表库本地化（v4.2.3 锁版）：原 unpkg latest 不锁版本，上游发版或 CDN 不可达时详情页全废 -->
 <script src="lib/lightweight-charts.standalone.production.js?v=4.2.3"></script>
-<script src="js/utils.js?v=20260909f"></script>
-<script src="js/store.js?v=20260909f"></script>
-<script src="js/proxy.js?v=20260909f"></script>
-<script src="js/data/universe.js?v=20260909f"></script>
-<script src="js/data/industry-chains.js?v=20260909f"></script>
-<script src="js/data/explain.js?v=20260909f"></script>
-<script src="js/technical.js?v=20260909f"></script>
-<script src="js/flags.js?v=20260909f"></script>
-<script src="js/sources/tencent.js?v=20260909f"></script>
-<script src="js/sources/sina.js?v=20260909f"></script>
-<script src="js/sources/eastmoney.js?v=20260909f"></script>
-<script src="js/sources/okx.js?v=20260909f"></script>
-<script src="js/sources/binance.js?v=20260909f"></script>
-<script src="js/sources/fred.js?v=20260909f"></script>
-<script src="js/sources/news.js?v=20260909f"></script>
-<script src="js/sources/worldbank.js?v=20260909f"></script>
-<script src="js/breadth.js?v=20260909f"></script>
-<script src="js/sessions.js?v=20260909f"></script>
-<script src="js/treemap.js?v=20260909f"></script>
-<script src="js/charts.js?v=20260909f"></script>
-<script src="js/app.js?v=20260909f"></script>
+<script src="js/utils.js?v=20260909g"></script>
+<script src="js/store.js?v=20260909g"></script>
+<script src="js/proxy.js?v=20260909g"></script>
+<script src="js/data/universe.js?v=20260909g"></script>
+<script src="js/data/industry-chains.js?v=20260909g"></script>
+<script src="js/data/explain.js?v=20260909g"></script>
+<script src="js/technical.js?v=20260909g"></script>
+<script src="js/flags.js?v=20260909g"></script>
+<script src="js/sources/tencent.js?v=20260909g"></script>
+<script src="js/sources/sina.js?v=20260909g"></script>
+<script src="js/sources/eastmoney.js?v=20260909g"></script>
+<script src="js/sources/okx.js?v=20260909g"></script>
+<script src="js/sources/binance.js?v=20260909g"></script>
+<script src="js/sources/fred.js?v=20260909g"></script>
+<script src="js/sources/news.js?v=20260909g"></script>
+<script src="js/sources/worldbank.js?v=20260909g"></script>
+<script src="js/breadth.js?v=20260909g"></script>
+<script src="js/sessions.js?v=20260909g"></script>
+<script src="js/treemap.js?v=20260909g"></script>
+<script src="js/charts.js?v=20260909g"></script>
+<script src="js/app.js?v=20260909g"></script>
 </body>
 </html>

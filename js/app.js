@@ -1155,7 +1155,7 @@
       state.chart.setData(data, prev);
     } else {
       state.chart.setData(data);
-      state.chart.setMAVisible(state.detailMACfg || true);
+      state.chart.setMAVisible(state.detailMACfg.lines);
     }
     // 分时下 MA 无意义（加密的 5 分钟 K 除外），禁用开关以免"看起来坏了"
     if (el.maToggle) el.maToggle.disabled = (kind === 'trend' && t.market !== 'crypto');
@@ -2268,20 +2268,39 @@
       window.Store.watchlist.toggle({ symbol: t.symbol, name: t.name, market: t.market });
       updateStar();
     });
-    // 均线自定义菜单：勾选即存 localStorage 并即时应用到当前图
+    // 均线菜单：打开时按真实配置回显勾选与周期数值（否则菜单全空、用户以为"都关了"图上还有线）
     el.maToggle.addEventListener('click', () => {
       const menu = document.getElementById('maMenu');
       if (!menu) return;
       const open = menu.hidden;
+      if (open) {
+        (state.detailMACfg.lines || []).forEach((l, i) => {
+          const cb = menu.querySelector(`[data-maline="${i}"]`);
+          const num = menu.querySelector(`[data-man="${i}"]`);
+          if (cb) cb.checked = !!l.on;
+          if (num) num.value = l.n;
+        });
+      }
       menu.hidden = !open;
       el.maToggle.classList.toggle('active', open);
     });
-    document.addEventListener('change', (e) => {
-      const opt = e.target.closest('[data-maopt]');
-      if (!opt) return;
-      state.detailMACfg = Object.assign({}, state.detailMACfg, { [opt.dataset.maopt]: opt.checked });
+    // 勾选/改周期 → 立即应用并存 localStorage（周期 clamp 到 2~500）
+    const applyMaLine = (i, patch) => {
+      const lines = state.detailMACfg.lines || [];
+      if (!lines[i]) return;
+      state.detailMACfg = { lines: lines.map((l, k) => k === i ? Object.assign({}, l, patch) : l) };
       window.Store.set('maCfg', state.detailMACfg);
-      if (state.chart) state.chart.setMAVisible(state.detailMACfg);
+      if (state.chart) state.chart.setMAVisible(state.detailMACfg.lines);
+    };
+    document.addEventListener('change', (e) => {
+      const cb = e.target.closest('[data-maline]');
+      if (cb) { applyMaLine(+cb.dataset.maline, { on: cb.checked }); return; }
+      const num = e.target.closest('[data-man]');
+      if (num) {
+        const n = Math.max(2, Math.min(500, Math.round(+num.value || 5)));
+        num.value = n;
+        applyMaLine(+num.dataset.man, { n });
+      }
     });
 
     // 搜索
@@ -2464,7 +2483,18 @@
     schedule('selftest', async () => { renderSelfTest(); }, 15000);
 
     // 深链还原：带 #tab= / #symbol= 打开时直达对应视图（此时数据调度已起，详情会自行拉数）
-    state.detailMACfg = window.Store.get('maCfg', null) || { ma5: true, ma20: true, ema26: true };
+    // 默认均线配置（6 槽：MA 5/10/20/60 + EMA 12/26，默认开 MA5/MA20/EMA26）
+    const MA_CFG_DEFAULT = { lines: [
+      { type: 'ma', n: 5, on: true },
+      { type: 'ma', n: 10, on: false },
+      { type: 'ma', n: 20, on: true },
+      { type: 'ma', n: 60, on: false },
+      { type: 'ema', n: 12, on: false },
+      { type: 'ema', n: 26, on: true },
+    ] };
+    const storedCfg = window.Store.get('maCfg', null);
+    state.detailMACfg = (storedCfg && Array.isArray(storedCfg.lines) && storedCfg.lines.length)
+      ? storedCfg : MA_CFG_DEFAULT;
     state.breadthHist = window.Store.get('breadthHist', []);
     if (location.hash && location.hash !== '#') renderFromHash();
   }

@@ -684,6 +684,11 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
 .ma-menu label:hover { color: var(--text); }
 .ma-menu i { width: 14px; height: 3px; border-radius: 1px; display: inline-block; margin-left: auto; }
 .ma-menu input { accent-color: var(--accent-signature); }
+.ma-menu input[type="number"] { width: 54px; padding: 2px 5px; margin-left: auto;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 3px;
+  color: var(--text); font-family: var(--font-mono); font-size: 11px; }
+.ma-menu input[type="number"]:focus { outline: none; border-color: rgba(255,255,255,0.3); }
+.ma-menu label input[type="checkbox"] { margin-right: 2px; }
 
 /* 技术面板块（替换原大师卡片） */
 .tech-summary { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
