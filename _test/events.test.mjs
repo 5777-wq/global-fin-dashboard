@@ -41,13 +41,17 @@ await test('normalize：清洗无效条目、去重、按时间倒序、坏坐�
     { type: 'macro', title: 'INFLATION COOLS IN US', publishedAt: T0 - 2 * HOUR },                       // 重复 → 丢弃
     { type: 'unknown', title: 'no time entry', publishedAt: '' },                                        // 无时间 → 丢弃
     { type: 'trade', title: 'Tariffs on China chips', publishedAt: T0, lat: 'not-a-number', lng: null }, // 坐标坏 → null
+    { type: 'market', title: 'Quake hits nowhere', publishedAt: T0, lat: null, lng: null },              // 字面 null → null（+null===0 陷阱）
     { type: 'trade', title: 'Old news', publishedAt: T0 - 5 * HOUR },
   ];
   const out = EV.normalize(raw);
-  assert.equal(out.length, 3);
-  assert.equal(out[0].title, 'Tariffs on China chips');        // 最新在前
+  assert.equal(out.length, 4);
+  assert.equal(out[0].title, 'Tariffs on China chips');        // 最新在前（同刻保持稳定序）
+  assert.equal(out[1].title, 'Quake hits nowhere');
+  assert.equal(out[1].lat, null);                              // 字面 null 不许变 (0,0)
+  assert.equal(out[1].lng, null);
   assert.equal(out[0].lat, null);                              // 坏坐标不猜测
-  assert.equal(out[0].type, 'trade');                          // 未知类型不会出现在这，但 market 兜底存在
+  assert.equal(out[0].type, 'trade');
   assert.equal(EV.normalize(null).length, 0);
 });
 

@@ -29,8 +29,10 @@ if [ ! -f "$TC/aapt2/aapt2.exe" ]; then
 fi
 AAPT2="$TC/aapt2/aapt2.exe"
 
-# 1) 图标（PIL）
-python gen_icons.py > /dev/null
+# 1) 图标（PIL）——已生成则跳过（构建机未必装 PIL，图标入库可复现）
+if [ ! -f res/mipmap-xxhdpi/ic_launcher.png ]; then
+  python gen_icons.py > /dev/null
+fi
 
 # 2) 资源编译 + 链接（生成资源 APK 与 R.java）
 echo "[1/6] aapt2 compile/link…"
@@ -80,5 +82,6 @@ fi
   --overwrite
 
 echo "[6/6] 完成：$OUT/app.apk（已对齐+签名）"
-cp "$OUT/app.apk" OpenFinLens-v1.0.0.apk
-ls -la OpenFinLens-v1.0.0.apk
+VERSION="${OFL_VERSION:-1.0.1}"
+cp "$OUT/app.apk" "OpenFinLens-v${VERSION}.apk"
+ls -la "OpenFinLens-v${VERSION}.apk"

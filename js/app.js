@@ -1093,7 +1093,7 @@
     el.detailPrice.textContent = '--';
     el.detailChg.textContent = '--';
     el.detailStats.innerHTML = '';
-    document.title = (target.name || target.code || '详情') + ' · GLOBAL FIN';
+    document.title = (target.name || target.code || '详情') + ' · OpenFinLens';
     updateStar();
     // 周期按钮 active 与 state 同步（detailPeriod 跨详情保留上次选择）
     document.querySelectorAll('[data-period]').forEach(b =>
@@ -1741,7 +1741,7 @@
     // 首屏：先给目录里已知的基本信息，历史明细异步补
     const known = (state.actors || []).find(a => a.id === id);
     el.actorName.textContent = known ? known.name : '席位 ' + code;
-    document.title = (known ? known.name : '席位档案') + ' · GLOBAL FIN';
+    document.title = (known ? known.name : '席位档案') + ' · OpenFinLens';
     el.actorMeta.innerHTML = '';
     el.actorStats.innerHTML = '';
     el.actorTimeline.innerHTML = '<div class="sk sk-row"></div>';
@@ -1827,7 +1827,7 @@
   function leaveActor() {
     state.actor = null;
     state.actorGen++;
-    document.title = 'GLOBAL FIN · 全球金融看板';
+    document.title = 'OpenFinLens · 全球金融看板';
   }
 
   /* ==================== 机构持仓 · 伯克希尔（SEC 13F-HR → 静态 JSON） ====================
@@ -2393,7 +2393,7 @@
     state.detail = null;
     state.pendingActivity = null;
     if (el.chartEventCard) el.chartEventCard.hidden = true;
-    document.title = 'GLOBAL FIN · 全球金融看板';
+    document.title = 'OpenFinLens · 全球金融看板';
   }
 
   function setTab(tab, opts) {
@@ -2410,7 +2410,7 @@
     if (state.view === 'detail' && (VIEW_OF_TAB[tab] || 'market') !== 'detail') {
       disposeChart();
       state.detail = null;
-      document.title = 'GLOBAL FIN · 全球金融看板';
+      document.title = 'OpenFinLens · 全球金融看板';
     }
     if (state.view === 'actor' && (VIEW_OF_TAB[tab] || 'market') !== 'actor') leaveActor();
     state.tab = tab;

@@ -109,8 +109,11 @@ const Events = (() => {
       const key = dedupeKey(raw.title);
       if (key && seen.has(key)) return;
       if (key) seen.add(key);
-      const lat = isFinite(+raw.lat) && isFinite(+raw.lng) ? +raw.lat : null;
-      const lng = isFinite(+raw.lng) ? +raw.lng : null;
+      // 注意 +null === 0：字面 null 必须显式排除，否则"无坐标"会被算成 (0,0) 落在 Null Island
+      const hasGeo = raw.lat !== null && raw.lat !== undefined && raw.lat !== '' &&
+        raw.lng !== null && raw.lng !== undefined && raw.lng !== '';
+      const lat = hasGeo && isFinite(+raw.lat) ? +raw.lat : null;
+      const lng = hasGeo && isFinite(+raw.lng) ? +raw.lng : null;
       out.push({
         id: typeof raw.id === 'string' && raw.id ? raw.id : key + '|' + publishedAt,
         type: TYPE_META[raw.type] ? raw.type : 'market',

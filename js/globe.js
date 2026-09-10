@@ -17,11 +17,12 @@ window.GlobeView = (() => {
   let resizeBound = null;
   let pending = false;         // create 进行中标记，防重复建
 
-  /* 缩放级别 → 聚类粒度：越远越粗（全球视角少而清），越近越细（看到单条） */
+  /* 缩放级别 → 聚类粒度：越远越粗，越近越细。远视图 10° 粒度下
+     北京(4,12)/首尔(4,13)/东京(4,14) 各占一格——中日韩不再挤成一个点 */
   function bucketFor(altitude) {
-    if (altitude >= 1.6) return 20;
-    if (altitude >= 1.1) return 12;
-    if (altitude >= 0.7) return 6;
+    if (altitude >= 1.6) return 10;
+    if (altitude >= 1.1) return 6;
+    if (altitude >= 0.7) return 3;
     return 0;
   }
 

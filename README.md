@@ -134,7 +134,7 @@ DOM updates are incremental patches, and nothing ever throws a blank screen at y
 ```bash
 cd android && bash build.sh
 # 构建链：aapt2 + javac + d8 + uber-apk-signer（便携工具链放 toolchain/，TUNA/阿里云镜像，不用海外 CDN）
-# 产物：OpenFinLens-v1.0.0.apk
+# 产物：OpenFinLens-v1.0.1.apk（应用名 OpenFinLens；版本号在 AndroidManifest.xml）
 ```
 
 ## 自己部署一份 · Deploy your own
