@@ -1717,7 +1717,7 @@
       { label: '近90天上榜', value: histStats.activityCount + ' 次' },
       { label: '买入 / 卖出笔数', value: `<span class="up">${histStats.buyCount}</span> / <span class="down">${histStats.sellCount}</span>` },
       { label: '涉及股票', value: histStats.stockCount + ' 只' },
-      { label: '上榜股 3 日上涨概率(历史)', value: histStats.avgRiseProb3d === null ? '--' : histStats.avgRiseProb3d.toFixed(1) + '%' },
+      { label: '上榜股 3 日上涨概率(历史)', value: (histStats.avgRiseProb3d === null || histStats.avgRiseProb3d === undefined) ? '--' : histStats.avgRiseProb3d.toFixed(1) + '%' },
     ];
     if (todayStats) {
       cells.push(
