@@ -20,7 +20,7 @@ window.WorldMapView = (() => {
   let selected = null, hover = null;
   let fit = 1, view = { s: 1, tx: 0, ty: 0 };
   let dpr = 1, raf = 0, pulseT0 = 0, camAnim = null;
-  let drag = null, ready = false, failed = false;
+  let drag = null, pinch = null, ready = false, failed = false;
   let resizeBound = null;
 
   /* ---------- 几何：topo → 世界坐标 Path2D（经线 unwrap 防跨 180° 拉丝） ---------- */
@@ -41,7 +41,7 @@ window.WorldMapView = (() => {
 
   function buildLandPath(features) {
     const path = new Path2D();
-    let rings = 0;
+    let rings = 0, sample = null, nan = 0;
     for (const f of features || []) {
       const g = f.geometry;
       if (!g) continue;
@@ -50,13 +50,20 @@ window.WorldMapView = (() => {
       for (const poly of polys) for (const ring of poly) {   // 外环与洞一并填，evenodd 自动成孔
         if (!ring || ring.length < 3) continue;
         const u = unwrapRing(ring);
-        path.moveTo(u[0][0] + W, H - (u[0][1] + 90));
-        for (let i = 1; i < u.length; i++) path.lineTo(u[i][0] + W, H - (u[i][1] + 90));
+        const x0 = u[0][0] + W, y0 = H - (u[0][1] + 90);
+        if (!Number.isFinite(x0) || !Number.isFinite(y0)) { nan++; continue; }
+        if (!sample) sample = [Math.round(x0), Math.round(y0)];
+        path.moveTo(x0, y0);
+        for (let i = 1; i < u.length; i++) {
+          const x = u[i][0] + W, y = H - (u[i][1] + 90);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) { nan++; continue; }
+          path.lineTo(x, y);
+        }
         path.closePath();
         rings++;
       }
     }
-    return rings ? { path, rings } : null;
+    return rings ? { path, rings, sample, nan } : null;
   }
 
   /* ---------- 投影与聚类 ---------- */
@@ -110,7 +117,14 @@ window.WorldMapView = (() => {
     return clampTyVal(ty, container ? container.clientHeight : 0);
   }
 
-  /* ---------- 视图 ---------- */
+  /* ---------- 视图 ----------
+     初始 = 「一个世界横向铺满容器」（Leaflet 式 minZoom 概念）：
+     s = cw/360，纵向居中或夹住——保证首屏恰好一个完整世界，绝不露出相邻副本的碎片。
+     最小缩放 = 铺满宽度，缩不下去（再小接缝就会进画面）。 */
+
+  function baseScale() {
+    return container ? container.clientWidth / W : 1;
+  }
 
   function resize() {
     if (!canvas || !container) return;
@@ -119,24 +133,37 @@ window.WorldMapView = (() => {
     dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.round(cw * dpr);
     canvas.height = Math.round(ch * dpr);
-    fit = Math.min(cw / W, ch / H);
-    if (ready) { view.ty = clampTy(view.ty); regroup(); }
+    fit = baseScale();
+    if (ready) {
+      view.s = Math.max(view.s, fit);
+      view.tx = clampTx(view.tx);
+      view.ty = clampTy(view.ty);
+      regroup();
+    }
     repaintNow();
+  }
+
+  function clampTx(tx) {
+    // 横向自由循环，但世界副本整体不许离开视口（否则一侧全黑一侧重世界）
+    const cw = container ? container.clientWidth : 0;
+    const span = W * view.s;
+    if (span <= cw) return (cw - span) / 2;
+    return clamp(tx, cw - span, 0);
   }
 
   function fitView() {
     if (!container) return;
     const cw = container.clientWidth, ch = container.clientHeight;
-    fit = Math.min(cw / W, ch / H);
+    fit = baseScale();
     view.s = fit;
-    view.tx = (cw - W * fit) / 2;
-    view.ty = (ch - H * fit) / 2;
+    view.tx = 0;                                   // 横向恰好铺满
+    view.ty = clampTyVal(0, ch);
   }
 
   function setCenter(wxp, wyp, targetS, animate) {
     const cw = container.clientWidth, ch = container.clientHeight;
-    const s = clamp(targetS || view.s, fit * 0.9, fit * 18);
-    const to = { s, tx: cw / 2 - wxp * s, ty: clampTy(ch / 2 - wyp * s) };
+    const s = clamp(targetS || view.s, fit, fit * 18);
+    const to = { s, tx: clampTx(cw / 2 - wxp * s), ty: clampTy(ch / 2 - wyp * s) };
     if (!animate || reduceMotion()) {
       view = to; camAnim = null; regroup(); repaintNow(); return;
     }
@@ -164,6 +191,9 @@ window.WorldMapView = (() => {
     ctx.arc(c.sx, c.sy, c.r, 0, Math.PI * 2);
     ctx.fillStyle = c.color;
     ctx.fill();
+    ctx.strokeStyle = 'rgba(10,12,15,0.85)';     // 深色描边把点从陆地纹理上衬出来
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
     if (c.importance >= 3) {                    // high：外描环提示重要度
       ctx.beginPath();
       ctx.arc(c.sx, c.sy, c.r + 2.4, 0, Math.PI * 2);
@@ -221,9 +251,9 @@ window.WorldMapView = (() => {
         if (k * W > x1 || (k + 1) * W < x0) continue;
         ctx.save();
         ctx.translate(k * W, 0);
-        ctx.fillStyle = 'rgba(126,146,170,0.24)';        // 与 3D hex 陆地同色系
+        ctx.fillStyle = 'rgba(139,158,182,0.32)';        // 陆地：与 3D hex 同色系，略提亮保轮廓可读
         ctx.fill(land.path, 'evenodd');
-        ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.10)';
         ctx.lineWidth = 1 / view.s;
         ctx.stroke(land.path);
         ctx.restore();
@@ -278,17 +308,57 @@ window.WorldMapView = (() => {
   }
 
   function bindEvents() {
+    /* 多指追踪：单指拖拽，双指捏合缩放（触摸/触屏板），Leaflet 同款语义 */
+    const pointers = new Map();
+
+    const zoomAt = (mx, my, s2) => {
+      s2 = clamp(s2, fit, fit * 18);
+      const wxp = (mx - view.tx) / view.s, wyp = (my - view.ty) / view.s;
+      view.s = s2;
+      view.tx = clampTx(mx - wxp * s2);
+      view.ty = clampTy(my - wyp * s2);
+      if (regroup() && hooks.onStatus) hooks.onStatus(statusText());
+      repaintNow();
+    };
+
+    const pinchState = () => {
+      const [a, b] = [...pointers.values()];
+      return { cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, dist: Math.hypot(a.x - b.x, a.y - b.y) };
+    };
+
     canvas.addEventListener('pointerdown', e => {
       canvas.setPointerCapture(e.pointerId);
-      drag = { mx: e.offsetX, my: e.offsetY, tx: view.tx, ty: view.ty, moved: false };
+      pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
       camAnim = null;
-      container.classList.add('dragging');
+      hideTip();
+      if (pointers.size === 1) {
+        drag = { mx: e.offsetX, my: e.offsetY, tx: view.tx, ty: view.ty, moved: false };
+        container.classList.add('dragging');
+      } else if (pointers.size === 2) {
+        drag = null;                       // 双指接管：退出单指拖拽
+        pinch = pinchState();
+      }
     });
     canvas.addEventListener('pointermove', e => {
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+      if (pointers.size >= 2 && pinch) {
+        const st = pinchState();
+        const factor = st.dist / (pinch.dist || 1);
+        if (Math.abs(factor - 1) > 0.005) {
+          zoomAt(st.cx, st.cy, view.s * factor);
+          // 捏合中心跟随：把上一帧中心的世界点贴回当前中心
+          const wxp = (pinch.cx - view.tx) / view.s, wyp = (pinch.cy - view.ty) / view.s;
+          view.tx = clampTx(st.cx - wxp * view.s);
+          view.ty = clampTy(st.cy - wyp * view.s);
+          regroup(); repaintNow();
+        }
+        pinch = st;
+        return;
+      }
       if (drag) {
         const dx = e.offsetX - drag.mx, dy = e.offsetY - drag.my;
         if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
-        view.tx = drag.tx + dx;
+        view.tx = clampTx(drag.tx + dx);
         view.ty = clampTy(drag.ty + dy);
         if (drag.moved) { regroup(); repaintNow(); hideTip(); }
         return;
@@ -298,28 +368,41 @@ window.WorldMapView = (() => {
       canvas.style.cursor = hit ? 'pointer' : '';
       if (hit) showTip(hit, e.offsetX, e.offsetY); else hideTip();
     });
-    canvas.addEventListener('pointerup', e => {
-      const wasClick = drag && !drag.moved;
-      drag = null;
-      container.classList.remove('dragging');
-      if (!wasClick) return;
-      const hit = pick(e.offsetX, e.offsetY);
-      if (!hit) return;
-      if (hit.count > 1 && hit.evs.length > 1) { if (hooks.onCluster) hooks.onCluster(hit); }
-      else if (hooks.onSelect) hooks.onSelect(hit.evs[0]);
+    const endPointer = e => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = null;
+      if (pointers.size === 1) {           // 双指抬起一根 → 回到单指拖拽
+        const [p] = [...pointers.values()];
+        drag = { mx: p.x, my: p.y, tx: view.tx, ty: view.ty, moved: true };
+        return;
+      }
+      if (pointers.size === 0) {
+        const wasClick = drag && !drag.moved;
+        drag = null;
+        container.classList.remove('dragging');
+        if (wasClick) {
+          const hit = pick(e.offsetX, e.offsetY);
+          if (hit) {
+            if (hit.count > 1 && hit.evs.length > 1) { if (hooks.onCluster) hooks.onCluster(hit); }
+            else if (hooks.onSelect) hooks.onSelect(hit.evs[0]);
+          }
+        }
+      }
+    };
+    canvas.addEventListener('pointerup', endPointer);
+    canvas.addEventListener('pointercancel', endPointer);
+    canvas.addEventListener('pointerleave', e => {
+      if (!pointers.size) { hideTip(); hover = null; }
     });
-    canvas.addEventListener('pointerleave', () => { hideTip(); hover = null; });
     canvas.addEventListener('wheel', e => {
       e.preventDefault();
       const factor = Math.exp(-e.deltaY * 0.0016);
-      const s2 = clamp(view.s * factor, fit * 0.9, fit * 18);
-      const wxp = (e.offsetX - view.tx) / view.s, wyp = (e.offsetY - view.ty) / view.s;
-      view.tx = e.offsetX - wxp * s2;
-      view.ty = clampTy(e.offsetY - wyp * s2);
-      view.s = s2;
-      if (regroup() && hooks.onStatus) hooks.onStatus(statusText());
-      repaintNow();
+      zoomAt(e.offsetX, e.offsetY, view.s * factor);
     }, { passive: false });
+    canvas.addEventListener('dblclick', e => {
+      e.preventDefault();
+      zoomAt(e.offsetX, e.offsetY, view.s * 1.9);
+    });
     resizeBound = () => resize();
     window.addEventListener('resize', resizeBound);
   }
@@ -415,7 +498,7 @@ window.WorldMapView = (() => {
     geo: { unwrapRing, bucketForZoomAt, wrapSx, clampTyVal },   // 纯几何，供离线单测
     /* 自检探针：当前视图 + 全部聚簇的（数据坐标→屏幕坐标）投影，用于核对点与底图对齐 */
     _debug: () => ({
-      fit, view: Object.assign({}, view), bucket,
+      fit, view: Object.assign({}, view), bucket, landRings: land ? land.rings : -1,
       clusters: clusters.map(c => ({
         lat: c.lat, lng: c.lng, sx: c.sx, sy: c.sy, count: c.count,
         country: c.evs[0] ? c.evs[0].country : null,
