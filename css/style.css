@@ -459,6 +459,14 @@ a.report-item:hover .report-title { text-decoration: underline; text-underline-o
 .noscript-box { margin: calc(var(--topbar-h) + 40px) auto 0; max-width: 520px;
   padding: 24px; border: 1px solid var(--border); color: var(--text-secondary); font-size: 13px; }
 
+/* 页脚 / 设置弹层：开源仓库与安卓客户端入口（小字弱色，hover 点亮主题橙） */
+.foot-links { margin-top: 8px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.foot-links a, .about-links a { color: var(--text-tertiary); text-decoration: none;
+  border-bottom: 1px dotted var(--text-faint); padding-bottom: 1px;
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
+.foot-links a:hover, .about-links a:hover { color: var(--accent-signature); border-bottom-color: currentColor; }
+.about-links { display: flex; gap: 16px; font-size: 12px; }
+
 /* ============================================================ 科普层 */
 .explain-box { padding: 16px 0 18px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
 .explain-kind { display: inline-block; font-size: 10px; letter-spacing: 0.14em;
