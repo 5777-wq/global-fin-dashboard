@@ -209,6 +209,9 @@ window.WorldMapView = (() => {
       }
     }
     drawGrid(x0, x1, y0, y1);
+    // 事件点的 sx/sy 已是屏幕像素，必须切回屏幕坐标系再画——
+    // 否则会再吃一次世界变换（双重变换），点被整体推出地球（真实事故：全部悬在海上）
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     project();
     clusters.forEach(c => drawPoint(c, t));
   }
