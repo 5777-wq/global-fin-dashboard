@@ -83,13 +83,31 @@ window.WorldMapView = (() => {
     return prev !== bucket;   // 聚类粒度变化时调用方应刷新状态行
   }
 
-  /* 屏幕坐标每帧按当前视图重算——首次 regroup 可能发生在容器隐藏（fit=0）时，
-     缓存会得到 NaN 坐标，之后 resize/平移/缩放也无需各自记得重算 */
+  /* 屏幕坐标每帧按当前视图重算。地图横向循环（陆地画多份世界副本），
+     点必须规范到「离屏幕中心最近」的那个副本——否则拖过世界接缝后，
+     点会留在另一个副本的天空上，看起来"标到了别的国家" */
+  function wrapSx(sxRaw, span, cw) {
+    return ((sxRaw - cw / 2) % span + span * 1.5) % span - span / 2 + cw / 2;
+  }
+
   function project() {
+    const span = W * view.s;
+    const cw = canvas.width / dpr;
     clusters.forEach(c => {
-      c.sx = wx(c.lng) * view.s + view.tx;
+      c.sx = wrapSx(wx(c.lng) * view.s + view.tx, span, cw);
       c.sy = wy(c.lat) * view.s + view.ty;
     });
+  }
+
+  /* 纵向边界：世界高于容器 → ty ∈ [ch-世界高, 0]（底对齐～顶对齐）；
+     世界矮于容器（缩太小）→ 锁定垂直居中，不留上下黑边 */
+  function clampTyVal(ty, ch, s) {
+    const worldH = H * (s === undefined ? view.s : s);
+    if (worldH >= ch) return clamp(ty, ch - worldH, 0);
+    return (ch - worldH) / 2;
+  }
+  function clampTy(ty) {
+    return clampTyVal(ty, container ? container.clientHeight : 0);
   }
 
   /* ---------- 视图 ---------- */
@@ -102,8 +120,8 @@ window.WorldMapView = (() => {
     canvas.width = Math.round(cw * dpr);
     canvas.height = Math.round(ch * dpr);
     fit = Math.min(cw / W, ch / H);
-    if (ready) regroup();
-    schedule();
+    if (ready) { view.ty = clampTy(view.ty); regroup(); }
+    repaintNow();
   }
 
   function fitView() {
@@ -118,9 +136,9 @@ window.WorldMapView = (() => {
   function setCenter(wxp, wyp, targetS, animate) {
     const cw = container.clientWidth, ch = container.clientHeight;
     const s = clamp(targetS || view.s, fit * 0.9, fit * 18);
-    const to = { s, tx: cw / 2 - wxp * s, ty: ch / 2 - wyp * s };
+    const to = { s, tx: cw / 2 - wxp * s, ty: clampTy(ch / 2 - wyp * s) };
     if (!animate || reduceMotion()) {
-      view = to; camAnim = null; regroup(); schedule(); return;
+      view = to; camAnim = null; regroup(); repaintNow(); return;
     }
     camAnim = { from: Object.assign({}, view), to, t0: performance.now(), dur: 500 };
     schedule();
@@ -196,10 +214,13 @@ window.WorldMapView = (() => {
     const y0 = -view.ty / view.s, y1 = y0 + ch / view.s;
 
     if (land) {
-      for (const dx of [-W, 0, W]) {            // unwrap 后的东西两翼各补一份
-        if (dx > x1 || dx + W < x0) continue;
+      // 覆盖视口的所有世界副本（拖多远都循环，不再只画固定三份）
+      const span = W * view.s;
+      const k0 = Math.floor(-view.tx / span);
+      for (let k = k0 - 1; k <= k0 + 1; k++) {
+        if (k * W > x1 || (k + 1) * W < x0) continue;
         ctx.save();
-        ctx.translate(dx, 0);
+        ctx.translate(k * W, 0);
         ctx.fillStyle = 'rgba(126,146,170,0.24)';        // 与 3D hex 陆地同色系
         ctx.fill(land.path, 'evenodd');
         ctx.strokeStyle = 'rgba(255,255,255,0.07)';
@@ -216,9 +237,16 @@ window.WorldMapView = (() => {
     clusters.forEach(c => drawPoint(c, t));
   }
 
-  /* ---------- rAF：仅在有动画（相机平移 / 选中脉冲）时持续，静止即停 ---------- */
+  /* ---------- rAF：仅服务选中脉冲与相机动画；交互路径走同步 repaintNow，
+     不依赖 rAF——帧回调被环境冻结时拖拽/缩放依然即时响应 ---------- */
 
   function schedule() { if (!raf) raf = requestAnimationFrame(frame); }
+
+  function repaintNow() {
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    if (!ready || failed) return;
+    render(performance.now());
+  }
 
   function frame(t) {
     raf = 0;
@@ -261,8 +289,8 @@ window.WorldMapView = (() => {
         const dx = e.offsetX - drag.mx, dy = e.offsetY - drag.my;
         if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
         view.tx = drag.tx + dx;
-        view.ty = drag.ty + dy;
-        if (drag.moved) { regroup(); schedule(); hideTip(); }
+        view.ty = clampTy(drag.ty + dy);
+        if (drag.moved) { regroup(); repaintNow(); hideTip(); }
         return;
       }
       const hit = pick(e.offsetX, e.offsetY);
@@ -287,10 +315,10 @@ window.WorldMapView = (() => {
       const s2 = clamp(view.s * factor, fit * 0.9, fit * 18);
       const wxp = (e.offsetX - view.tx) / view.s, wyp = (e.offsetY - view.ty) / view.s;
       view.tx = e.offsetX - wxp * s2;
-      view.ty = e.offsetY - wyp * s2;
+      view.ty = clampTy(e.offsetY - wyp * s2);
       view.s = s2;
       if (regroup() && hooks.onStatus) hooks.onStatus(statusText());
-      schedule();
+      repaintNow();
     }, { passive: false });
     resizeBound = () => resize();
     window.addEventListener('resize', resizeBound);
@@ -357,7 +385,7 @@ window.WorldMapView = (() => {
   function setEvents(list) {
     events = list || [];
     if (selected && !events.includes(selected)) selected = null;
-    if (ready) { regroup(); schedule(); if (hooks.onStatus) hooks.onStatus(statusText()); }
+    if (ready) { regroup(); repaintNow(); if (hooks.onStatus) hooks.onStatus(statusText()); }
   }
 
   function select(ev) {
@@ -365,7 +393,7 @@ window.WorldMapView = (() => {
     pulseT0 = performance.now();
     if (ev && ev.lat !== null && ev.lng !== null && ready) {
       setCenter(wx(ev.lng), wy(ev.lat), Math.max(view.s, fit * 2.2), true);
-    } else schedule();
+    } else repaintNow();
   }
 
   function focus(lat, lng) {
@@ -384,6 +412,14 @@ window.WorldMapView = (() => {
 
   return {
     create, setEvents, select, focus, resize, dispose, isReady: () => ready,
-    geo: { unwrapRing, bucketForZoomAt },   // 纯几何，供离线单测
+    geo: { unwrapRing, bucketForZoomAt, wrapSx, clampTyVal },   // 纯几何，供离线单测
+    /* 自检探针：当前视图 + 全部聚簇的（数据坐标→屏幕坐标）投影，用于核对点与底图对齐 */
+    _debug: () => ({
+      fit, view: Object.assign({}, view), bucket,
+      clusters: clusters.map(c => ({
+        lat: c.lat, lng: c.lng, sx: c.sx, sy: c.sy, count: c.count,
+        country: c.evs[0] ? c.evs[0].country : null,
+      })),
+    }),
   };
 })();

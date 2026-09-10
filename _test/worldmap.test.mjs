@@ -54,6 +54,36 @@ await test('bucketForZoomAt：缩放阈值决定聚类粒度（10/6/3/0 度）',
   assert.equal(WM.geo.bucketForZoomAt(12), 0);
 });
 
+await test('wrapSx：拖过任意多个世界接缝后，点始终规范到离屏心最近的世界副本', () => {
+  const span = 646, cw = 897;                     // fit≈1.79 时一个世界副本宽 646px
+  const inBand = (sx) => sx >= cw / 2 - span / 2 && sx < cw / 2 + span / 2;
+  // 初始视图的真实值域
+  assert.ok(inBand(WM.geo.wrapSx(310, span, cw)), '域内点不动');
+  // 向左/向右拖出 0.5、1、2.5 个世界后：美国点仍落在屏心附近的正确副本上
+  for (const raw of [310 - 0.5 * span, 310 - 1 * span, 310 - 2.5 * span, 310 + 1 * span, 310 + 3 * span]) {
+    const sx = WM.geo.wrapSx(raw, span, cw);
+    assert.ok(inBand(sx), 'raw=' + raw + ' → ' + sx + ' 出环带');
+    // 与未 wrap 的原点必须相差整数个副本（同一经度，不同世界）
+    const k = (raw - sx) / span;
+    assert.ok(Math.abs(k - Math.round(k)) < 1e-9, '偏移不是整数个副本');
+  }
+});
+
+await test('clampTyVal：纵向拖不露出界，缩得比容器小时锁垂直居中', () => {
+  const S = 1.794;                     // 世界高 180*1.794 ≈ 322.9
+  const near = (v, x) => Math.abs(v - x) < 0.1;
+  // 容器 300 < 世界 322.9 → ty ∈ [300-322.9, 0] = [-22.9, 0]
+  assert.ok(near(WM.geo.clampTyVal(-200, 300, S), -22.9), '下界 -22.9');
+  assert.ok(near(WM.geo.clampTyVal(50, 300, S), 0), '上界 0');
+  assert.ok(near(WM.geo.clampTyVal(-10, 300, S), -10), '界内不动');
+  // 世界高恰与容器相等（322.9 vs 323，世界略矮 0.08）→ 锁垂直居中 ≈ 0.04
+  assert.ok(near(WM.geo.clampTyVal(-40, 323, S), 0.04), '略矮锁居中');
+  assert.ok(near(WM.geo.clampTyVal(500, 323, S), 0.04), '大幅越界仍居中');
+  // 世界比容器矮得多（世界高 100 < 容器 500）→ 恒等于垂直居中 200
+  assert.ok(near(WM.geo.clampTyVal(-300, 500, 100 / 180), 200), '缩太小锁垂直居中');
+  assert.ok(near(WM.geo.clampTyVal(900, 500, 100 / 180), 200), '缩太小锁垂直居中(2)');
+});
+
 await test('模块形状：API 表面与 GlobeView 同形，初始未就绪', () => {
   for (const k of ['create', 'setEvents', 'select', 'focus', 'resize', 'dispose', 'isReady']) {
     assert.equal(typeof WM[k], 'function', 'missing api: ' + k);
