@@ -41,7 +41,7 @@ function makeCtx() {
 const ctx = makeCtx();
 const load = (rel) => vm.runInContext(readFileSync(path.join(ROOT, rel), 'utf8'), ctx, { filename: rel });
 load('js/utils.js'); load('js/store.js'); load('js/proxy.js');
-load('js/data/masters.js'); load('js/data/explain.js');
+load('js/technical.js'); load('js/data/explain.js');   // computeProfile 已从旧大师模块迁入 technical.js
 load('js/data/industry-chains.js'); load('js/data/universe.js');
 load('js/sources/tencent.js'); load('js/sources/binance.js');
 const W = vm.runInContext('window', ctx);
@@ -118,7 +118,7 @@ await test('computeProfile：构造序列手算核对（年涨跌/回撤/均线/
   const kl = [];
   let p = 100;
   for (let i = 0; i < 60; i++) { kl.push({ time: 'd' + i, open: p, close: p, high: p, low: p }); p *= 1.01; }
-  const prof = W.Masters.computeProfile(kl);
+  const prof = W.Technical.computeProfile(kl);
   const last = kl[59].close;
   assert.ok(Math.abs(prof.yearChangePct - (last / 100 - 1) * 100) < 0.01, '年涨跌 ' + prof.yearChangePct);
   assert.ok(Math.abs(prof.offHighPct) < 0.0001, '序列单调涨，距高点应为 0');
@@ -132,11 +132,11 @@ await test('computeProfile：构造序列手算核对（年涨跌/回撤/均线/
 });
 
 await test('computeProfile：数据不足 / 脏数据返回 null', () => {
-  assert.equal(W.Masters.computeProfile([]), null);
-  assert.equal(W.Masters.computeProfile(null), null);
-  assert.equal(W.Masters.computeProfile([{ close: 1 }, { close: 2 }]), null, '30 根以下应 null');
+  assert.equal(W.Technical.computeProfile([]), null);
+  assert.equal(W.Technical.computeProfile(null), null);
+  assert.equal(W.Technical.computeProfile([{ close: 1 }, { close: 2 }]), null, '30 根以下应 null');
   const bad = Array.from({ length: 50 }, () => ({ close: null }));
-  assert.equal(W.Masters.computeProfile(bad), null, '全脏数据应 null');
+  assert.equal(W.Technical.computeProfile(bad), null, '全脏数据应 null');
 });
 
 await test('computeProfile：新画像字段手算核对（回撤/高点距今/20日动量/均线偏离）', () => {
@@ -144,127 +144,12 @@ await test('computeProfile：新画像字段手算核对（回撤/高点距今/2
   for (let i = 0; i < 40; i++) kl.push({ close: 100 + 2 * i });            // 涨段：峰 178 @ i=39
   const peakV = 178;
   for (let k = 1; k <= 20; k++) kl.push({ close: peakV * Math.pow(0.99, k) }); // 跌段 20 根
-  const prof = W.Masters.computeProfile(kl);
+  const prof = W.Technical.computeProfile(kl);
   const last = kl[59].close;
   assert.ok(Math.abs(prof.maxDDPct - (last / peakV - 1) * 100) < 0.01, 'maxDD ' + prof.maxDDPct);
   assert.equal(prof.barsSinceHigh, 20, '距高点交易日数 ' + prof.barsSinceHigh);
   assert.ok(Math.abs(prof.mom20Pct - (last / kl[39].close - 1) * 100) < 0.01, 'mom20 ' + prof.mom20Pct);
   assert.ok(prof.ma20OffPct < 0 && prof.aboveMA20 === false, '下跌段现价应在 20 日线下方');
-});
-
-await test('posIn52w：52 周区间位置手算核对', () => {
-  const kl = []; let v = 100;
-  for (let i = 0; i < 60; i++) { kl.push({ close: v }); v += 1; }   // 100 → 159
-  const p = W.Masters.computeProfile(kl);
-  const pos = W.Masters.posIn52w(p);
-  assert.ok(pos !== null && Math.abs(pos - 1) < 0.01, '单调涨序列现价应在区间顶: ' + pos);
-  const p2kl = []; let v2 = 100;
-  for (let i = 0; i < 61; i++) { p2kl.push({ close: v2 }); v2 *= 0.99; }
-  const p2 = W.Masters.computeProfile(p2kl);
-  const pos2 = W.Masters.posIn52w(p2);
-  assert.ok(pos2 !== null && pos2 < 0.05, '单调跌序列现价应在区间底: ' + pos2);
-});
-
-/* ================= 大师数据结构 ================= */
-await test('大师定义：≥6 位，字段完整', () => {
-  assert.ok(W.Masters.LIST.length >= 6, '仅 ' + W.Masters.LIST.length + ' 位');
-  const ids = new Set();
-  W.Masters.LIST.forEach(m => {
-    assert.ok(m.id && m.name && m.school && m.quote, m.id + ' 字段缺失');
-    ids.add(m.id);
-  });
-  assert.equal(ids.size, W.Masters.LIST.length, 'id 重复');
-  assert.ok(ids.has('buffett'), '必须有巴菲特');
-});
-
-/* ================= 大师"具体标的具体分析" ================= */
-
-const MOCK_KL = (start, days, daily) => {
-  const kl = []; let v = start;
-  for (let i = 0; i < days; i++) { kl.push({ time: 'd' + i, open: v, close: v, high: v, low: v }); v *= daily; }
-  return kl;
-};
-
-await test('analyze：每条输出携带本标的专属内容（数字或属性），不是纯口号', () => {
-  const p = W.Masters.computeProfile(MOCK_KL(100, 120, 1.003));
-  const out = W.Masters.analyze({ symbol: 'sh600519', market: 'cn', code: '600519' }, p);
-  out.forEach(m => {
-    const hasNum = m.points.some(x => /\d/.test(x.t));
-    assert.ok(hasNum, m.name + ' 所有条目都不含数字（疑似模板口号）');
-    const hasPercent = m.points.some(x => x.t.includes('%'));
-    assert.ok(hasPercent || m.headline.includes('%'), m.name + ' 无任何百分比数据');
-  });
-  // headline 随数据变化：同一位大师对强势/弱势标的 headline 不同
-  const strong = W.Masters.analyze({ symbol: 'sh600519', market: 'cn' }, W.Masters.computeProfile(MOCK_KL(100, 200, 1.004)));
-  const weak = W.Masters.analyze({ symbol: 'sh600519', market: 'cn' }, W.Masters.computeProfile(MOCK_KL(100, 200, 0.995)));
-  let diffHeads = 0;
-  strong.forEach((m, i) => { if (m.headline !== weak[i].headline) diffHeads++; });
-  assert.ok(diffHeads >= 4, '强弱市况下动态 headline 仅 ' + diffHeads + ' 位大师不同，动态化不足');
-});
-
-await test('analyze：茅台的分析包含生意属性 + 真实画像数字（不是通用口号）', () => {
-  const p = W.Masters.computeProfile(MOCK_KL(100, 120, 1.003));
-  const out = W.Masters.analyze({ symbol: 'sh600519', name: '贵州茅台', market: 'cn', code: '600519' }, p);
-  assert.equal(out.length, W.Masters.LIST.length, '每位大师都要有分析');
-  const bf = out.find(m => m.name === '巴菲特');
-  const all = out.map(m => m.points.map(x => x.t).join(' ')).join(' ');
-  assert.ok(all.includes('品牌'), '茅台分析应提品牌属性');
-  assert.ok(all.includes('近一年'), '应引用画像数据');
-  assert.ok(all.includes('%'), '应有具体百分数');
-  assert.ok(!/建议买入|建议卖出|应该买|应该卖|推荐买入|推荐卖出|可以抄底|可以买入/.test(all), '出现荐股表述');
-  out.forEach(m => {
-    assert.ok(m.points.length >= 2 && m.points.length <= 5, m.name + ' 条目数 ' + m.points.length);
-    assert.ok(m.headline && m.quote, m.name + ' 缺 headline/quote');
-    m.points.forEach(x => assert.ok(['fact', 'view', 'gap'].includes(x.k), '条目类型非法'));
-  });
-});
-
-await test('analyze：不同标的分析不同（茅台 vs 英伟达 vs BTC 文本有区分度）', () => {
-  const p = W.Masters.computeProfile(MOCK_KL(50, 120, 1.01));
-  const mt = W.Masters.analyze({ symbol: 'sh600519', market: 'cn' }, p).map(m => m.points.map(x => x.t).join('')).join('');
-  const nv = W.Masters.analyze({ symbol: 'usNVDA', market: 'us' }, p).map(m => m.points.map(x => x.t).join('')).join('');
-  const bt = W.Masters.analyze({ symbol: 'BTCUSDT', market: 'crypto', code: 'BTCUSDT', name: 'BTC' }, p).map(m => m.points.map(x => x.t).join('')).join('');
-  assert.ok(nv.includes('CUDA') || nv.includes('AI'), '英伟达分析应提其生意');
-  assert.ok(bt.includes('数字黄金') || bt.includes('2100'), 'BTC 分析应提其属性');
-  assert.notEqual(mt, nv);
-  assert.notEqual(nv, bt);
-});
-
-await test('analyze：未知标的（搜索进来）也有完整分析 + 数据缺口标注', () => {
-  const p = W.Masters.computeProfile(MOCK_KL(10, 60, 0.995));
-  const out = W.Masters.analyze({ symbol: 'EM:1.600000', market: 'cn', name: '某银行', code: '600000' }, p);
-  assert.equal(out.length, W.Masters.LIST.length);
-  const all = out.map(m => m.points.map(x => x.t).join(' ')).join(' ');
-  assert.ok(all.includes('近一年'), '兜底也应有画像数据');
-  assert.ok(all.includes('财报') || all.includes('查'), '应提示数据缺口');
-  // 无画像（K线拉取失败）也不崩
-  const out2 = W.Masters.analyze({ symbol: 'EM:1.600000', market: 'cn' }, null);
-  assert.equal(out2.length, W.Masters.LIST.length);
-});
-
-await test('analyze：欧奈尔对趋势位置给出差异化结论（强 vs 深回撤）', () => {
-  const strong = W.Masters.computeProfile(MOCK_KL(100, 200, 1.004));   // 单边涨 → 贴近新高
-  const weak = W.Masters.computeProfile(MOCK_KL(100, 200, 0.995));     // 单边跌 → 深回撤
-  const s1 = W.Masters.analyze({ symbol: 'sh600519', market: 'cn' }, strong).find(m => m.name === '欧奈尔');
-  const s2 = W.Masters.analyze({ symbol: 'sh600519', market: 'cn' }, weak).find(m => m.name === '欧奈尔');
-  const t1 = s1.points.map(x => x.t).join('');
-  const t2 = s2.points.map(x => x.t).join('');
-  assert.ok(t1.includes('贴近新高') || t1.includes('经典买点'), '强势应给"贴近新高"类结论');
-  assert.ok(t2.includes('回撤') || t2.includes('禁区') || t2.includes('从不抄底'), '弱势应给"回撤"类结论');
-  assert.notEqual(t1, t2, '两种市况的欧奈尔分析不应相同');
-});
-
-await test('属性表：universe 全部标的 + 主流币都有大师分析用的属性', () => {
-  const missing = [];
-  W.TENCENT_UNIVERSE.forEach(x => { if (!W.Masters.P[x.symbol]) missing.push(x.symbol); });
-  W.EM_UNIVERSE.forEach(x => { if (!W.Masters.P[x.symbol]) missing.push(x.symbol); });
-  ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'DOGE'].forEach(b => { if (!W.Masters.CRYPTO_P[b]) missing.push('crypto:' + b); });
-  assert.equal(missing.length, 0, '缺属性: ' + missing.join(','));
-  // 每条属性字段完整
-  Object.entries(W.Masters.P).forEach(([k, v]) => {
-    assert.ok(v.biz && v.moat && v.g && v.risk !== undefined && v.reflex, k + ' 属性不完整');
-    assert.ok(W.Masters.G_LABEL[v.g], k + ' g 分类非法: ' + v.g);
-  });
 });
 
 /* ================= 解释表 ================= */

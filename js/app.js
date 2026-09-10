@@ -63,13 +63,16 @@
     boardOpenBk: null, boardStocks: [], boardGen: 0,
     voices: null, voicesAt: 0, voicesGen: 0, globeQuotes: null,
     events: null, eventsVia: null, eventsGenAt: null, eventsStale: true, eventsLoadedAt: 0,
-    eventsSub: 'globe',        // 事件页子视图：globe（全球事件）| news（实时快讯，旧"新闻"tab）
+    eventsSub: Store.get('evMode', 'globe'),   // 事件页子视图：globe（3D 地球）| map（平面地图）| news（实时快讯）
     eventsType: 'all',         // 事件类型过滤（all / macro / central_bank / …）
     eventsSource: '',          // 数据源名（状态行合成用）
     globeStatusPts: null,      // 地球点数状态（onStatus 回调），与数据源状态行合并显示
+    mapStatusPts: null,        // 平面地图点数状态（onStatus 回调）
     selEvent: null,            // 当前选中的全球事件
     globeReady: false,         // 3D 地球实例化完成标记
     globeFailed: false,        // vendor/WebGL 不可用：列表模式兜底，不再反复初始化
+    mapReady: false,           // 平面地图实例化完成标记
+    mapFailed: false,          // 地图数据/Canvas 不可用：不再反复初始化
     lhb: null, lhbAt: 0,       // A股龙虎榜（东财直连，日频披露）
     actors: null, actorsAt: 0, actorsDate: null,   // 席位目录（当日 LHB 明细聚合）
     actor: null, actorGen: 0,  // 当前打开的席位档案
@@ -96,7 +99,7 @@
     'detailBack', 'klineChart', 'chartBox', 'detailInsight', 'maToggle',
     'globeBar', 'macroBox', 'voicesList', 'voicesSub', 'newsCatBar',
     'eventsSub', 'globeStage', 'globeStatus', 'globeFallback', 'globeLegend',
-    'evGlobePane', 'evNewsPane', 'evTypeBar', 'eventList', 'eventDetail',
+    'evGlobePane', 'evNewsPane', 'evTypeBar', 'eventList', 'eventDetail', 'mapStage',
     'lhbBox', 'lhbVia', 'evtToggle', 'chartEventCard',
     'seatDir', 'seatDirVia',
     'brkBox', 'brkVia', 'marketTitle', 'globalOverview', 'moodPanel',
@@ -1454,13 +1457,13 @@
     renderEventList();
     renderGlobeLegend();
     applyDetailEvents();   // 新事件可能补上 K 线标记
-    if (state.globeReady) window.GlobeView.setEvents(eventsFiltered());
+    syncGeoViews();
   }
 
   // 状态行合成：数据源新鲜度（采集时间/滞后/缓存）+ 地球点数，谁后到都不覆盖谁
   function renderGlobeStatus() {
     if (!el.globeStatus) return;
-    const pts = state.globeStatusPts;
+    const pts = state.eventsSub === 'map' ? (state.mapStatusPts || state.globeStatusPts) : state.globeStatusPts;
     if (!state.eventsVia) {
       el.globeStatus.classList.add('warn');
       el.globeStatus.textContent = '暂无数据 · 采集任务未运行（GitHub Actions 每 5 分钟采集一轮）';
@@ -1565,7 +1568,35 @@
     state.selEvent = ev;
     renderEventList();
     renderEventDetail(ev);
-    if (window.GlobeView && state.globeReady) window.GlobeView.select(ev);   // 平滑转向 + 高亮环
+    if (state.eventsSub === 'map') {
+      if (window.WorldMapView && state.mapReady) window.WorldMapView.select(ev);   // 平移居中 + 脉冲环
+    } else if (window.GlobeView && state.globeReady) {
+      window.GlobeView.select(ev);   // 平滑转向 + 高亮环
+    }
+  }
+
+  function syncGeoViews() {   // 事件数据/筛选变化：3D 地球与平面地图一起刷
+    const evs = eventsFiltered();
+    if (state.globeReady && window.GlobeView) window.GlobeView.setEvents(evs);
+    if (state.mapReady && window.WorldMapView) window.WorldMapView.setEvents(evs);
+  }
+
+  function ensureWorldMap() {
+    if (state.mapReady || state.mapFailed || !el.mapStage) return Promise.resolve(null);
+    return window.WorldMapView.create(el.mapStage, {
+      onSelect: selectGlobalEvent,
+      onCluster: showCluster,
+      onStatus: (t) => { state.mapStatusPts = t; if (state.eventsSub === 'map') renderGlobeStatus(); },
+    }).then(ok => {
+      if (ok) {
+        state.mapReady = true;
+        window.WorldMapView.setEvents(eventsFiltered());
+        renderGlobeStatus();
+      } else {
+        state.mapFailed = true;   // 地图数据不可用：提示用 3D 地球，不再反复尝试
+      }
+      return ok;
+    });
   }
 
   function ensureGlobe() {
@@ -1594,15 +1625,23 @@
   }
 
   function setEventsSub(sub) {
-    state.eventsSub = sub === 'news' ? 'news' : 'globe';
+    if (sub !== 'news' && sub !== 'map') sub = 'globe';
+    state.eventsSub = sub;
+    Store.set('evMode', sub);                 // 记住上次用的视图（3D / 平面 / 快讯）
     document.querySelectorAll('[data-evsub]').forEach(b =>
       b.classList.toggle('active', b.dataset.evsub === state.eventsSub));
-    const globeMode = state.eventsSub === 'globe';
-    if (el.evGlobePane) el.evGlobePane.hidden = !globeMode;
-    if (el.evNewsPane) el.evNewsPane.hidden = globeMode;
-    if (globeMode) {
+    const newsMode = sub === 'news', mapMode = sub === 'map';
+    if (el.evGlobePane) el.evGlobePane.hidden = newsMode;
+    if (el.evNewsPane) el.evNewsPane.hidden = !newsMode;
+    if (el.mapStage) el.mapStage.hidden = !mapMode;
+    if (el.globeStage) el.globeStage.hidden = mapMode;
+    if (mapMode) {
+      ensureWorldMap();
+      refreshEventsData();
+    } else if (!newsMode) {
       ensureGlobe();
       refreshEventsData();
+      if (state.globeReady && window.GlobeView && window.GlobeView.resize) window.GlobeView.resize();   // display:none 切回后重测尺寸
     } else if (!state.news.length) {
       state.newsCat = 'all';   // 进快讯面板重置板块过滤（旧新闻 tab 行为）
       el.newsList.innerHTML = '<div class="sk sk-row"></div>'.repeat(6);
@@ -2852,7 +2891,7 @@
         renderEvTypeBar();
         renderEventList();
         renderGlobeLegend();
-        if (state.globeReady) window.GlobeView.setEvents(eventsFiltered());
+        syncGeoViews();
         return;
       }
       const evRow = e.target.closest('[data-ev]');

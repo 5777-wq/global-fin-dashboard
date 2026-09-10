@@ -86,7 +86,7 @@ window.GlobeView = (() => {
         .atmosphereAltitude(0.12)
         .showGraticules(true)
         .hexPolygonsData(lands)
-        .hexPolygonColor(() => 'rgba(126,146,170,0.22)')
+        .hexPolygonColor(() => 'rgba(126,146,170,0.30)')
         .hexPolygonAltitude(0.006)
         .pointsData([])
         .pointLat(d => d.lat)
@@ -172,6 +172,12 @@ window.GlobeView = (() => {
     if (globe) globe.pointOfView({ lat, lng, altitude: 1.4 }, 900);
   }
 
+  /* 平面地图/3D 用 display:none 互斥切换，切回时容器尺寸为 0，需要手动重测 */
+  function resize() {
+    if (!globe || !container) return;
+    globe.width(container.clientWidth || 600).height(container.clientHeight || 480);
+  }
+
   function dispose() {
     if (resizeBound) window.removeEventListener('resize', resizeBound);
     resizeBound = null;
@@ -182,6 +188,6 @@ window.GlobeView = (() => {
     if (container) container.innerHTML = '';
   }
 
-  const api = { create, setEvents, select, focus, dispose, isReady: () => !!globe };
+  const api = { create, setEvents, select, focus, resize, dispose, isReady: () => !!globe };
   return api;
 })();

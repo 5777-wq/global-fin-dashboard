@@ -777,6 +777,15 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
 @keyframes globeIn { from { opacity: 0; } to { opacity: 1; } }
 .globe-hint { position: absolute; right: 12px; bottom: 10px; font-size: 10px;
   color: var(--text-faint); letter-spacing: 0.06em; pointer-events: none; }
+
+/* 2D 平面世界地图（与 3D 地球同一容器语言：暗海、灰蓝陆地、类型色事件点） */
+#mapStage { cursor: grab; }
+#mapStage.dragging { cursor: grabbing; }
+#mapStage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wmap-tip { position: absolute; z-index: 3; pointer-events: none; max-width: 280px;
+  left: 0; top: 0; padding: 8px 10px; border: 1px solid var(--border-hover);
+  background: var(--bg-elevated); font-size: 11px; line-height: 1.6;
+  color: var(--text-secondary); }
 .globe-legend { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 12px;
   flex-wrap: wrap; pointer-events: none; }
 .gl-item { display: inline-flex; align-items: center; gap: 5px; font-size: 10px;

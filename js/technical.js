@@ -257,7 +257,59 @@ const Technical = (() => {
     return out;
   }
 
-  return { smaSeries, emaSeries, rsi, macd, kdj, boll, atr, volumeRatio, maSystem, analyze };
+  /* ---------- 日K画像（原大师模块的纯数据部分，随板块更名迁入） ----------
+     近一年涨跌 / 距 52 周高低点 / 年化波动 / 最大回撤 / 均线偏离：详情页事实弹药 */
+  function computeProfile(klines) {
+    if (!Array.isArray(klines) || klines.length < 30) return null;
+    const closes = klines.map(k => k.close).filter(c => isNum(c) && c > 0);
+    if (closes.length < 30) return null;
+    const lastClose = closes[closes.length - 1];
+    const win = closes.slice(-Math.min(243, closes.length));
+    const yearAgo = win[0];
+    const high = Math.max(...win);
+    const low = Math.min(...win);
+
+    let vol = null;
+    if (win.length >= 31) {
+      const rets = [];
+      for (let i = 1; i < win.length; i++) rets.push(Math.log(win[i] / win[i - 1]));
+      const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
+      const varr = rets.reduce((s, r) => s + (r - mean) * (r - mean), 0) / rets.length;
+      vol = Math.sqrt(varr) * Math.sqrt(243) * 100;
+    }
+
+    let peak = win[0], maxDD = 0, hiIdx = 0;
+    for (let i = 0; i < win.length; i++) {
+      if (win[i] > peak) { peak = win[i]; hiIdx = i; }
+      const dd = win[i] / peak - 1;
+      if (dd < maxDD) maxDD = dd;
+    }
+
+    const ma = (n) => {
+      if (closes.length < n) return null;
+      const arr = closes.slice(-n);
+      return arr.reduce((a, b) => a + b, 0) / arr.length;
+    };
+
+    return {
+      points: closes.length,
+      yearChangePct: (lastClose / yearAgo - 1) * 100,
+      offHighPct: (lastClose / high - 1) * 100,
+      offLowPct: (lastClose / low - 1) * 100,
+      volAnnual: vol,
+      maxDDPct: maxDD * 100,                       // 窗口内最大峰谷回撤（≤0）
+      barsSinceHigh: win.length - 1 - hiIdx,       // 距 52 周高点过了多少个交易日
+      mom20Pct: closes.length > 20 ? (lastClose / closes[closes.length - 21] - 1) * 100 : null,
+      ma20: ma(20), ma60: ma(60),
+      ma20OffPct: ma(20) !== null ? (lastClose / ma(20) - 1) * 100 : null,
+      ma60OffPct: ma(60) !== null ? (lastClose / ma(60) - 1) * 100 : null,
+      aboveMA20: ma(20) !== null ? lastClose > ma(20) : null,
+      aboveMA60: ma(60) !== null ? lastClose > ma(60) : null,
+      high52w: high, low52w: low,
+    };
+  }
+
+  return { smaSeries, emaSeries, rsi, macd, kdj, boll, atr, volumeRatio, maSystem, analyze, computeProfile };
 })();
 
 window.Technical = Technical;
