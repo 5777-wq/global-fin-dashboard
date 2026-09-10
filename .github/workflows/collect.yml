@@ -1,0 +1,53 @@
+# 全球事件采集任务：GDELT + 新浪7x24 → data/events/global-events.json（5 分钟/轮，GDELT 本体 15 分钟级）
+# 伯克希尔 13F：SEC EDGAR → data/actors/berkshire.json（季度数据，每 6 小时对时一次）
+# 海外源只在 Actions 侧访问；浏览器永远不直连 GDELT/SEC（见 js/sources/gdelt.js 与 js/sources/sec.js）。
+# 数据无变化时不产生提交；push 冲突时 rebase 重试（用户可能同时手推代码）。
+name: collect
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  events:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Collect GDELT + Sina global events
+        run: node _scripts/collect-events.mjs
+
+      - name: Refresh Berkshire 13F (every ~6h, UTC 00/06/12/18)
+        run: |
+          H=$(date -u +%H); M=$(date -u +%M)
+          if [ "$M" = "00" ] && { [ "$H" = "00" ] || [ "$H" = "06" ] || [ "$H" = "12" ] || [ "$H" = "18" ]; }; then
+            node _scripts/collect-brk.mjs || echo "brk collect failed (keep old data)"
+          fi
+
+      - name: Commit if changed
+        run: |
+          git config user.name "openfinlens-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/events/global-events.json data/actors/berkshire.json
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "data: refresh global events + berkshire 13f [skip ci]"
+            for i in 1 2 3; do
+              if git push; then break; fi
+              git pull --rebase origin main || true
+              sleep 5
+            done
+          fi
