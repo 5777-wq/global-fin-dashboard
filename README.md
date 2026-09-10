@@ -10,7 +10,7 @@
 ![no build](https://img.shields.io/badge/build-none-000?style=flat-square)
 ![no npm](https://img.shields.io/badge/dependencies-0-000?style=flat-square)
 ![no backend](https://img.shields.io/badge/backend-none-000?style=flat-square)
-![tests](https://img.shields.io/badge/tests-138_passing-2ebd85?style=flat-square)
+![tests](https://img.shields.io/badge/tests-142_passing-2ebd85?style=flat-square)
 ![no keys](https://img.shields.io/badge/API_keys-0-000?style=flat-square)
 
 </div>
@@ -41,20 +41,20 @@ python -m http.server 8765   # → http://127.0.0.1:8765
 
 | | 功能 | 说明 |
 |---|---|---|
-| 🖥️ | **行情总览** | 8 大品类 47 个核心标的，10s 轮询，红涨绿跌可切换（全球市场 hero + 六大指数卡：日·德·英·法·韩·印，带国旗） |
-| 🌏 | **3D 全球事件** | globe.gl 地球（本地 vendor），GDELT 事件按类别着色落点，缩放级别自适应聚类，点事件→详情→关联资产直达 K 线 |
+| 🖥️ | **行情总览** | 9 个板块：全部 / A股 / 港美 / 宏观 / 加密 / 事件 / 聪明钱 / 产业链 / 自选；「全球市场」总览只住「全部」，各板块只看自己（10s 轮询，红涨绿跌可切换） |
+| 🌏 | **3D 全球事件** | globe.gl 地球（本地 vendor），GDELT + 新浪7x24 事件按类别着色落点，缩放级别自适应聚类，点事件→详情→关联资产直达 K 线 |
 | ⚡ | **Event-on-Chart** | 宏观/央行/贸易/冲突事件与龙虎榜按日期画上 K 线（圆点 marker），点击弹出事件卡——把事件和价格反应放在同一屏 |
-| 💰 | **资金动向** | A股龙虎榜（净买额榜 + 次日/5日历史统计）与"公开言论"分栏呈现——发言 ≠ 交易，口径严格分开 |
+| 🧠 | **聪明钱** | Actor-centric：席位动向目录 → 席位档案（近 90 天轨迹 + 完整上榜原因）→ 今日龙虎榜 → 伯克希尔 13F 季度持仓（SEC EDGAR，含环比增持/减持）→ 公开言论。发言 ≠ 交易，口径严格分开 |
 | 🔥 | **全市场热力图** | A股 ~5500 只 + 加密 80 币，手写 squarify + canvas；滚轮以光标为锚缩放、拖拽平移、双指捏合、右键复位 |
 | 📈 | **K线详情** | 分时/日/周/**月**，成交量副图，MA5/10/20/60 + EMA12/26 六线自由开关（localStorage 记忆） |
 | 🧪 | **技术面面板** | RSI(14) · MACD(12,26,9) · KDJ(9,3,3) · BOLL(20,2) · ATR(14) · 量比 · 均线排列——每条都是日K手算，附常用读法，绝不荐股 |
-| 🌡️ | **市场宽度 ×3** | A股（~5500 只）/ 美股（~13800 只全量）/ 加密（80 对）三块情绪温度计，涨跌家数、七段分布、A股含涨跌停分板判定 |
+| 🌡️ | **情绪与市场宽度** | 情绪小节并入 A股板块底部：A股（~5500 只）/ 美股（~13800 只全量）/ 加密（80 对）温度计、涨跌家数、七段分布、逐日快照走势 |
 | 🗺️ | **产业链图谱** | 10 条链 · 49 个环节 · 163 只成分股（逐一实测代码），环节强度 = 成分股涨跌幅实时均值 |
 | 📡 | **今日热门概念** | 东财 500+ 概念板块实时涨幅榜 → 命中人工链条直接跳转，未命中展开领涨成分股兜底 |
-| 📰 | **快讯 + 公开言论** | 快讯按产业链板块分类过滤；马斯克/特朗普/黄仁勋/奥尔特曼等 10 人发言聚合（新闻口径，诚实标注，住"资金"页） |
-| 🌍 | **世界经济仪表盘** | 世界银行 API：美中日德英法印韩 × GDP/增长/通胀/失业/债务/经常账户，列内色阶热图 |
+| 📰 | **快讯 + 公开言论** | 快讯按产业链板块分类过滤；马斯克/特朗普/黄仁勋/奥尔特曼等 10 人发言聚合（新闻口径，诚实标注，住"聪明钱"页） |
+| 🌍 | **世界经济仪表盘** | 宏观板块独占整屏：世界银行 API，美中日德英法印韩 × GDP/增长/通胀/失业/债务/经常账户，列内色阶热图 |
 | ⭐ | **自选 + 搜索** | 跨市场收藏（localStorage）、组合概览、按涨跌幅排序；搜索支持中文/代码/拼音 |
-| ⌨️ | **细节** | 市场时段徽章（夏令时正确）、hash 深链、键盘 1-9/0 切 tab、`/` 搜索、`Backspace` 返回、开屏真实进度条 |
+| ⌨️ | **细节** | 市场时段徽章（夏令时正确）、hash 深链、键盘 1-9/0 切 tab、`/` 搜索、`Backspace` 返回、开屏真实进度条；加密内容有**内置合规开关**（默认开，界面无入口，`?crypto=off` 关闭后加密板块/行情/新闻/热力图整体隐藏，其余功能不受影响——微信小程序合规预留） |
 
 ## 它怎么工作 · How it works
 
@@ -69,8 +69,9 @@ python -m http.server 8765   # → http://127.0.0.1:8765
 └── 永不白屏：任何一层挂掉都是"降级角标 + 旧数据/骨架"，绝无弹窗报错
 ```
 
-海外源（GDELT）**不在浏览器里请求**：`.github/workflows/collect.yml` 每 30 分钟抓取、清洗、
+海外源（GDELT / SEC EDGAR）**不在浏览器里请求**：`.github/workflows/collect.yml` 每 5 分钟抓取、清洗、
 去重、地理定位后提交一份静态 JSON，浏览器只读自己的数据——核心功能不要求用户能直连海外接口。
+国内的新浪 7x24 快讯作为全球事件的第二来源（GDELT 不可达时的兜底），同样只走采集层。
 *Overseas sources are collected server-side (GitHub Actions) into a static JSON; the browser only
 ever talks to its own data plus domestic endpoints.*
 
@@ -89,8 +90,9 @@ DOM updates are incremental patches, and nothing ever throws a blank screen at y
 | 外汇 / 商品 / 国债收益率 | 东财 secid（119/133、101-103、171） | 新浪（需代理） | 缓存 |
 | K线 / 分时 | 腾讯 `ifzq`（前复权） | 东财 → 空态 | 不白屏 |
 | 概念板块榜 / 成分股 | 东财 `clist`（`m:90+t:3` / `b:BKxxxx`） | — | 隐藏榜单 |
-| A股龙虎榜 | 东财 datacenter-web（净买额榜，CORS 直连） | — | 空态 + 重试 |
-| 全球事件 | **GDELT → GitHub Actions 每 30 分钟采集** → 静态 JSON | localStorage 缓存 | 诚实空态 |
+| A股龙虎榜 | 东财 datacenter-web（净买额榜 + 席位明细，CORS 直连） | — | 空态 + 重试 |
+| 全球事件 | **GDELT + 新浪7x24 → Actions 每 5 分钟采集** → 静态 JSON | localStorage 缓存 | 诚实空态 |
+| 伯克希尔 13F | **SEC EDGAR → Actions 每 6 小时采集** → 静态 JSON（季度披露） | 缓存 | 诚实空态 |
 | 新闻 | 新浪 roll（JSONP） | 东财 `np-listapi` | 缓存 60s |
 | 宏观年度指标 | 世界银行 `api.worldbank.org` | — | 缓存 24h |
 | 搜索 | 东财 searchapi（中文/代码） | codetable（拼音） | 空态 |
@@ -106,6 +108,11 @@ DOM updates are incremental patches, and nothing ever throws a blank screen at y
 - 新浪 JSONP 的回调名**不能以下划线开头**（`callback illegal character`）；东财新闻必须带 `req_trace` 参数。
 - 深夜清算时段东财把涨跌幅回成 `"-"` 字符串：按数值过滤会把全市场清空，必须允许缺失（显示 `--`）。
 - 美股宽度必须**全量抓 13800 只**：按涨跌幅排序分页只取前段，统计的是"跌幅榜"不是市场。
+- SEC `data.sec.gov` 按 User-Agent 里的**邮箱域名**拉黑：`@users.noreply.github.com` 这类隐私代理域名直接 403，
+  "名称 + 普通邮箱" 才放行；且 13F 的 `value` 字段自 2023-01 起是**整美元**（官方口径曾为千美元），乘 1000 就会把
+  巴菲特算成三百万亿富翁。
+- 东财龙虎榜"席位明细"报表（`RPT_BILLBOARD_DAILYDETAILSBUY/SELL`）**不含证券简称**（只有营业部名）：
+  档案页的股票名由前端解析层补齐（东财 quote 批量接口 f14 + localStorage 缓存），缺的显示代码，绝不造名字。
 
 ## 家规 · House rules
 

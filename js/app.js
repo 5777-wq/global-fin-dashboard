@@ -74,6 +74,8 @@
     actors: null, actorsAt: 0, actorsDate: null,   // 席位目录（当日 LHB 明细聚合）
     actor: null, actorGen: 0,  // 当前打开的席位档案
     pendingActivity: null,     // 从席位档案点进个股时携带的活动（K线上画席位标记）
+    stockNames: (function () { try { return window.Store.get('stockNames', {}) || {}; } catch { return {}; } })(),
+    brk: null, brkAt: 0,       // 伯克希尔 13F 持仓（SEC 采集静态 JSON，季度）
     chartEventsOn: true,       // 详情页 K 线事件标记开关
     lastUpdate: null,
     timers: {},
@@ -97,6 +99,7 @@
     'evGlobePane', 'evNewsPane', 'evTypeBar', 'eventList', 'eventDetail',
     'lhbBox', 'lhbVia', 'evtToggle', 'chartEventCard',
     'seatDir', 'seatDirVia',
+    'brkBox', 'brkVia', 'marketTitle', 'globalOverview', 'moodPanel',
     'actorBack', 'actorName', 'actorType', 'actorMeta', 'actorStats', 'actorStatsSub', 'actorTimeline'];
 
   const pctClass = (p) => (p === null || p === undefined || isNaN(p)) ? 'flat' : (p > 0 ? 'up' : p < 0 ? 'down' : 'flat');
@@ -105,6 +108,20 @@
   let _rmVal = _rmMQ.matches;
   if (_rmMQ.addEventListener) _rmMQ.addEventListener('change', (e) => { _rmVal = e.matches; });
   const reduceMotion = () => _rmVal;
+
+  /* ---- 加密内容内部开关（界面上没有任何入口；为微信小程序合规预留）----
+     默认开。联调/合规场景：URL 带 ?crypto=off 关闭（写入本机记住），?crypto=on 重新打开，
+     或直接 localStorage['ofl:crypto']='off'。关闭后加密 tab/卡片/热力图/宽度/新闻/详情
+     全部隐藏，其余功能不受影响；界面上不出现任何开关入口。 */
+  const CRYPTO_ON = (() => {
+    try {
+      const q = location.search || '';
+      if (/[?&]crypto=off/.test(q)) localStorage.setItem('ofl:crypto', 'off');
+      if (/[?&]crypto=on/.test(q)) localStorage.removeItem('ofl:crypto');
+      return localStorage.getItem('ofl:crypto') !== 'off';
+    } catch { return true; }
+  })();
+  if (!CRYPTO_ON) document.body.classList.add('no-crypto');
 
   // 自选 symbol 集合：渲染一批卡片前取一次，避免每卡 has() → JSON.parse(localStorage)
   let watchSet = new Set();
@@ -227,6 +244,7 @@
   }
 
   async function fetchCrypto() {
+    if (!CRYPTO_ON) return;   // 合规开关关闭：不轮询币安/OKX
     const want = window.CRYPTO_FEATURED;
     let list = await window.BinanceSource.getQuotes(want);
     let via = 'primary';
@@ -248,7 +266,7 @@
     if (!extras.length) { state.watchQuotes.clear(); return; }
     const emIds = extras.filter(s => s.startsWith('EM:')).map(s => s.slice(3));
     const tencentSyms = extras.filter(s => /^(sh|sz|bj|hk|us)/.test(s));
-    const cryptoSyms = extras.filter(s => /USDT$/i.test(s));
+    const cryptoSyms = CRYPTO_ON ? extras.filter(s => /USDT$/i.test(s)) : [];
     const [em, tc, cc] = await Promise.all([
       emIds.length ? window.EastmoneySource.getQuotes(emIds).catch(() => []) : [],
       tencentSyms.length ? window.TencentSource.getQuotes(tencentSyms).catch(() => []) : [],
@@ -302,10 +320,12 @@
 
   function groupsForTab(tab) {
     const map = {
-      all: ['index', 'cn', 'hk', 'us', 'crypto', 'fx', 'commodity', 'macro'],
+      all: CRYPTO_ON
+        ? ['index', 'cn', 'hk', 'us', 'crypto', 'fx', 'commodity', 'macro']
+        : ['index', 'cn', 'hk', 'us', 'fx', 'commodity', 'macro'],
       cn: ['index', 'cn'],
       hkus: ['index', 'hk', 'us'],
-      crypto: ['crypto'],
+      crypto: CRYPTO_ON ? ['crypto'] : [],
       fxmacro: ['fx', 'commodity', 'macro'],
     };
     return map[tab] || map.all;
@@ -359,9 +379,12 @@
       if (!groups.includes(g.key)) return;
       let items = Array.from(state.quotes.values()).filter(q => (q.group || q.market) === g.key);
       if (tabFilter) {
+        // 严格归属过滤：A股 tab 只见 universe 里 tab:'cn' 的行（修复"全球指数粘在每个板块"）；
+        // 加密组本身全是币安标的（无 universe 元数据），整组天然纯净，直接放行
         items = items.filter(q => {
+          if (g.key === 'crypto') return true;
           const meta = LABELS.get(q.symbol);
-          return !meta || !meta.tab || meta.tab === tabFilter || q.group === 'crypto';
+          return !!meta && meta.tab === tabFilter;
         });
       }
       if (!items.length) return;
@@ -390,7 +413,7 @@
 
   /* ---- hero：一屏唯一的大数字（上证 / 恒指 / 标普 / BTC，带市场旗标）----
      BTC 不给旗标：加密走自身 logo，再叠 coin 旗会出现两个 ₿（用户反馈） */
-  const HERO_KEYS = ['sh000001', 'hkHSI', 'usINX', 'BTCUSDT'];
+  const HERO_KEYS = ['sh000001', 'hkHSI', 'usINX'].concat(CRYPTO_ON ? ['BTCUSDT'] : []);
   const HERO_FLAG = { 'sh000001': 'cn', 'hkHSI': 'hk', 'usINX': 'us' };
   function renderHero() {
     const box = el.heroStrip;
@@ -514,7 +537,8 @@
   }
 
   function renderWatchlist(noAnim) {
-    const items = window.Store.watchlist.all();
+    // 合规开关关闭：加密标的从列表隐藏（自选数据本身保留，开关打开即恢复）
+    const items = window.Store.watchlist.all().filter(it => CRYPTO_ON || !/USDT$/i.test(it.symbol));
     if (!items.length) {
       el.watchWall.innerHTML = '<div class="empty">点击卡片右上角 ★ 添加自选</div>';
       return;
@@ -593,6 +617,7 @@
   }
 
   async function loadHeatCrypto() {
+    if (!CRYPTO_ON) return;   // 合规开关关闭：不抓加密全市场
     let rows = await window.BinanceSource.getTop(80);
     let via = 'primary';
     if (!rows.length) { rows = await window.OkxSource.getTop(80); via = 'backup'; }
@@ -751,6 +776,7 @@
   function renderMoodCrypto(rows) {
     const box = el.moodCrypto;
     if (!box) return;
+    if (!CRYPTO_ON) { box.innerHTML = ''; return; }   // 合规开关关闭：加密宽度整块不出
     const valid = (rows || []).filter(r => r.changePct !== null && r.changePct !== undefined && !isNaN(r.changePct));
     if (!valid.length) {
       box.innerHTML = '';
@@ -821,7 +847,7 @@
       window.Store.get('breadthHist', []), state.breadth.score, state.breadth.total);
     window.Store.set('breadthHist', state.breadthHist);
     renderMood();
-    ensureCryptoRows().then(renderMoodCrypto);   // 加密宽度：与 A 股并列，不再"只有 A 股"
+    if (CRYPTO_ON) ensureCryptoRows().then(renderMoodCrypto);   // 加密宽度：与 A 股并列，不再"只有 A 股"
     ensureUSRows().then(renderMoodUS);           // 美股宽度：全球三大市场之一，不能缺席
   }
 
@@ -1057,6 +1083,7 @@
   /* ==================== 详情页 + K线 ==================== */
 
   async function openDetail(target, opts) {
+    if (target && target.market === 'crypto' && !CRYPTO_ON) return;   // 合规开关：加密标的详情不放行
     state.prevView = state.view === 'detail' ? state.prevView : state.tab;
     state.detail = target;
     setView('detail');
@@ -1231,6 +1258,7 @@
     const kw = (el.searchInput.value || '').trim();
     const isNewsView = state.tab === 'events' && state.eventsSub === 'news';
     return state.news.filter(it => {
+      if (!CRYPTO_ON && window.NewsSource.matchMarket(it, 'crypto')) return false;   // 合规开关：加密快讯不放行
       if (!window.NewsSource.matchMarket(it, state.newsMkt)) return false;
       if (state.newsCat !== 'all' && window.NewsSource.classify(it) !== state.newsCat) return false;
       if (isNewsView && kw) return (it.title + ' ' + (it.summary || '')).toLowerCase().includes(kw.toLowerCase());
@@ -1494,7 +1522,8 @@
     if (!el.eventDetail) return;
     if (!ev) { el.eventDetail.hidden = true; el.eventDetail.innerHTML = ''; return; }
     const meta = window.Events.TYPE_META[ev.type] || {};
-    const rel = ev.relatedSymbols.map(sym => {
+    const isCryptoSym = (s) => /USDT$/i.test(s);
+    const rel = ev.relatedSymbols.filter(s => CRYPTO_ON || !isCryptoSym(s)).map(sym => {
       const q = findQuote(sym);
       return { sym, name: q ? q.name : sym };
     });
@@ -1510,7 +1539,7 @@
       <div class="evd-meta num">来源 ${escapeHTML(ev.source || '--')}${safeUrl ? ` · <a href="${escapeHTML(safeUrl)}" target="_blank" rel="noopener">原文链接</a>` : ''}${ev.country ? ' · ' + escapeHTML(ev.country) : ''}</div>
       ${rel.length ? `<div class="evd-rel"><span class="evd-rel-label">直接关联</span>${rel.map(r =>
         `<button class="rel-chip num" data-relsym="${escapeHTML(r.sym)}">${escapeHTML(r.name)}</button>`).join('')}</div>` : ''}
-      ${(ev.relatedAssets && ev.relatedAssets.length) ? `<div class="evd-rel"><span class="evd-rel-label">宏观相关</span>${ev.relatedAssets.map(r => {
+      ${(ev.relatedAssets && ev.relatedAssets.length) ? `<div class="evd-rel"><span class="evd-rel-label">宏观相关</span>${ev.relatedAssets.filter(r => CRYPTO_ON || !isCryptoSym(r.sym)).map(r => {
         const q = findQuote(r.sym);
         return `<button class="rel-chip rel-soft num" data-relsym="${escapeHTML(r.sym)}" title="宏观映射口径（相关≠因果）">${escapeHTML(q ? q.name : r.sym)}</button>`;
       }).join('')}</div>` : ''}`;
@@ -1650,6 +1679,28 @@
     return (q && q.name) || code;
   }
 
+  /* ---- 证券名字解析层 ----
+     实测：东财龙虎榜"席位明细"报表（RPT_BILLBOARD_DAILYDETAILSBUY/SELL）不含证券简称，
+     档案页"上榜记录"里的股票名必须由解析层补齐：先查本机缓存（localStorage 持久化），
+     缺的批量走东财 quote 接口（f14，50 个/请求），仍拿不到就显示代码——绝不造名字。 */
+  function stockDisplayName(a) {
+    return (a && a.stockName) || state.stockNames[a && a.code] || nameOfStockCode(a && a.code);
+  }
+
+  async function ensureStockNames(codes) {
+    const missing = [...new Set((codes || []).filter(c => c && !state.stockNames[c]))];
+    if (!missing.length) return;
+    for (let i = 0; i < missing.length; i += 50) {
+      const chunk = missing.slice(i, i + 50);
+      const secids = chunk.map(c => (/^6/.test(c) ? '1.' : '0.') + c);
+      const quotes = await window.EastmoneySource.getQuotes(secids).catch(() => []);
+      quotes.forEach(q => {
+        if (q && q.name && q.code) state.stockNames[String(q.code)] = q.name;
+      });
+    }
+    try { window.Store.set('stockNames', state.stockNames); } catch { /* 存储满不致命 */ }
+  }
+
   function renderSeatDirectory() {
     if (!el.seatDir) return;
     const list = state.actors || [];
@@ -1709,6 +1760,12 @@
     state.actor = { id, code, name: known ? known.name : null, hist };
     renderActorStats(known ? known.stats : null, hist.stats);
     renderActorTimeline(hist, code);
+    // 明细报表不带证券简称：异步补齐后原地重渲（名称先出结构，名字随后跟上）
+    ensureStockNames(hist.activities.map(a => a.code)).then(() => {
+      if (state.actor && state.actor.id === id && state.actor.hist) {
+        renderActorTimeline(state.actor.hist, state.actor.code);
+      }
+    });
   }
 
   function renderActorStats(todayStats, histStats) {
@@ -1749,7 +1806,7 @@
       return `<div class="srow" data-activity="${escapeHTML(a.id)}" tabindex="0" role="button"
           aria-label="${a.tradeDate} ${escapeHTML(a.code)} ${a.action}">
         <span class="sr-date num">${escapeHTML(a.tradeDate.slice(5))}</span>
-        <span class="sr-stock">${escapeHTML(nameOfStockCode(a.code))}<span class="lr-code num">${escapeHTML(a.code)}</span></span>
+        <span class="sr-stock">${escapeHTML(stockDisplayName(a))}<span class="lr-code num">${escapeHTML(a.code)}</span></span>
         <span class="sr-act num ${a.action === 'BUY' ? 'up' : 'down'}">${a.action === 'BUY' ? '买入' : '卖出'}</span>
         <span class="sr-net num ${cls}">${fmtAmt(a.net)}</span>
         <span class="sr-buy num up">${a.buy === null ? '--' : fmtAmt(a.buy)}</span>
@@ -1761,7 +1818,7 @@
       row.addEventListener('click', () => {
         const a = hist.activities[i];
         state.pendingActivity = a;   // K 线加载后叠"席位买/卖"标记
-        openDetail({ symbol: a.symbol, name: nameOfStockCode(a.code), code: a.code, market: 'cn', secid: a.symbol.slice(3), tencent: tencentOfSecid(a.symbol.slice(3)) });
+        openDetail({ symbol: a.symbol, name: stockDisplayName(a), code: a.code, market: 'cn', secid: a.symbol.slice(3), tencent: tencentOfSecid(a.symbol.slice(3)) });
       });
     });
     void seatCode;
@@ -1771,6 +1828,84 @@
     state.actor = null;
     state.actorGen++;
     document.title = 'GLOBAL FIN · 全球金融看板';
+  }
+
+  /* ==================== 机构持仓 · 伯克希尔（SEC 13F-HR → 静态 JSON） ====================
+     采集脚本 _scripts/collect-brk.mjs 跑在本地/Actions，浏览器只读静态文件。
+     口径诚实：13F 是季度披露的多头股票持仓（滞后最长 45 天），只有历史事实，无任何实时操作。 */
+
+  function fmtUsd(v) {
+    if (v === null || v === undefined || isNaN(v)) return '--';
+    const yi = v / 1e8;
+    if (Math.abs(yi) >= 10000) return (yi / 10000).toFixed(2) + ' 万亿美元';
+    return yi.toFixed(1) + ' 亿美元';
+  }
+  const BRK_CHANGE_META = {
+    NEW:  { label: '新进', cls: 'up' },
+    ADD:  { label: '增持', cls: 'up' },
+    TRIM: { label: '减持', cls: 'down' },
+    HOLD: { label: '不变', cls: 'flat' },
+    EXIT: { label: '退出', cls: 'down' },
+  };
+
+  async function loadBrk() {
+    let d;
+    try {
+      d = await window.SecSource.getBerkshire();   // 采集静态 JSON（sources/sec.js）
+      window.SourceState.ok('brk');
+      if (!d || !Array.isArray(d.holdings)) throw new Error('bad payload');
+      window.SourceState.ok('brk');
+    } catch {
+      const c = Cache.raw('brk');
+      if (c && c.val && Array.isArray(c.val.holdings) && c.val.holdings.length) {
+        d = Object.assign({}, c.val, { via: 'cache' });
+      } else {
+        window.SourceState.fail('brk', 'SEC 13F 采集不可用');
+        renderBrkEmpty();
+        return;
+      }
+    }
+    state.brk = d;
+    state.brkAt = Date.now();
+    if (d.via !== 'cache') Cache.set('brk', d);
+    renderBrk();
+  }
+
+  function renderBrkEmpty() {
+    if (!el.brkBox) return;
+    el.brkBox.innerHTML = '<div class="empty">暂无 13F 数据（采集任务未运行）。持仓数据必须来自 SEC 官方披露，本页不做任何编造。</div>';
+    if (el.brkVia) el.brkVia.textContent = '';
+  }
+
+  function renderBrk() {
+    if (!el.brkBox) return;
+    const d = state.brk;
+    if (!d || !Array.isArray(d.holdings) || !d.holdings.length) { renderBrkEmpty(); return; }
+    if (el.brkVia) {
+      el.brkVia.textContent = (d.via === 'cache' ? '缓存 · ' : '') +
+        (d.reportDate || '?') + ' 报告期 · SEC 13F-HR · 季度披露 · 组合 ' + fmtUsd(d.totalValueUsd);
+    }
+    const changeChip = (h) => {
+      const m = BRK_CHANGE_META[h.change] || { label: '--', cls: 'flat' };
+      // 不变/新进不带百分比（HOLD 的 0.00% 是噪音）
+      const pctTxt = (h.change === 'ADD' || h.change === 'TRIM') && h.sharesChangePct !== null && h.sharesChangePct !== undefined && !isNaN(h.sharesChangePct)
+        ? ' ' + fmtPct(h.sharesChangePct) : '';
+      return `<span class="brk-chg ${m.cls}">${m.label}${pctTxt}</span>`;
+    };
+    el.brkBox.innerHTML = `<div class="brow-head" aria-hidden="true">
+        <span>发行公司</span><span>持仓市值</span><span>持股数</span><span>占比</span><span>环比</span>
+      </div>` + d.holdings.slice(0, 40).map(h => `
+      <div class="brow" tabindex="0" role="button"
+        aria-label="${escapeHTML(h.issuer)} 持仓 ${fmtUsd(h.valueUsd)}">
+        <span class="br-name">${escapeHTML(h.issuer)}<span class="lr-code num">${escapeHTML(h.cusip || '')}</span></span>
+        <span class="br-val num">${fmtUsd(h.valueUsd)}</span>
+        <span class="br-shares num">${h.shares === null ? '--' : fmtVol(h.shares) + ' 股'}</span>
+        <span class="br-pct num">${h.pctOfTotal === null || h.pctOfTotal === undefined ? '--' : h.pctOfTotal.toFixed(1) + '%'}</span>
+        <span class="br-chg-cell">${changeChip(h)}</span>
+      </div>`).join('') +
+      (d.exits && d.exits.length
+        ? `<div class="brk-exits">上期持有、本期已退出：${d.exits.map(x => escapeHTML(x.issuer)).join('、')}</div>`
+        : '');
   }
 
   /* ==================== Event-on-Chart：详情页 K 线事件标记（全球事件 + 龙虎榜） ==================== */
@@ -2181,10 +2316,11 @@
 
   const VIEW_OF_TAB = {
     all: 'market', cn: 'market', hkus: 'market', crypto: 'market', fxmacro: 'market',
-    events: 'events', funds: 'funds', mood: 'mood', chain: 'chain', watch: 'watch',
+    events: 'events', funds: 'funds', chain: 'chain', watch: 'watch',
+    mood: 'market',   // 旧 hash：情绪已并入 A股板块
     news: 'events', voices: 'funds',   // 旧 hash / 旧快捷键深链兼容：新闻→事件页，喊单→资金页
   };
-  const TAB_ALIAS = { news: 'events', voices: 'funds' };
+  const TAB_ALIAS = { news: 'events', voices: 'funds', mood: 'cn' };
 
   function setView(view) {
     state.view = view;
@@ -2261,11 +2397,12 @@
   }
 
   function setTab(tab, opts) {
-    // 旧 tab 名兼容：新闻→事件页(快讯子面板)，喊单→资金页
+    // 旧 tab 名兼容：新闻→事件页(快讯子面板)，喊单→资金页，情绪→A股(已并入)
     if (TAB_ALIAS[tab]) {
       if (tab === 'news') state.eventsSub = 'news';
       tab = TAB_ALIAS[tab];
     }
+    if (tab === 'crypto' && !CRYPTO_ON) tab = 'all';   // 合规开关：加密深链/快捷键归位「全部」
     const animate = !opts || opts.animate !== false;   // 返回详情/改设置时不重播入场动画
     // 重复点击同一 tab：短路，避免整墙重建 + stagger 重播 + 焦点丢失
     if (tab === state.tab && state.view === (VIEW_OF_TAB[tab] || 'market')) return;
@@ -2290,6 +2427,14 @@
     }
     const view = VIEW_OF_TAB[tab] || 'market';
     setView(view);
+    // 「全球市场」总览（hero + 全球指数条）只在「全部」出现；各板块用自己的标题（用户反馈：别到处粘）
+    const MKT_TITLE = { all: '全球市场', cn: 'A股市场', hkus: '港美市场', crypto: '加密市场', fxmacro: '世界经济' };
+    if (el.marketTitle) el.marketTitle.textContent = MKT_TITLE[tab] || '全球市场';
+    if (el.globalOverview) el.globalOverview.hidden = tab !== 'all';
+    // 宏观 tab 只看世界经济仪表盘，不再叠一墙行情卡
+    if (el.cardWall) el.cardWall.hidden = tab === 'fxmacro';
+    // 情绪与市场宽度：A股板块底部的小节
+    if (el.moodPanel) el.moodPanel.hidden = tab !== 'cn';
     // 市场视图：热力图只在"全部/A股/加密"下有意义
     const heatWasHidden = el.heatSection.hidden;
     el.heatSection.hidden = !['all', 'cn', 'crypto'].includes(tab);
@@ -2319,9 +2464,23 @@
       }
     }
     if (view === 'events') setEventsSub(state.eventsSub);
-    if (view === 'mood') {
+    if (tab === 'cn') {
       if (state.breadth) renderMood();
       loadMood();
+    }
+    if (view === 'funds') {
+      // 公开言论（旧喊单）：55s 过期重拉；龙虎榜 4 分钟；席位目录随 loadLhb 拉取
+      if (!state.voices || Date.now() - (state.voicesAt || 0) > 55000) loadVoices();
+      else renderVoices();
+      if (!state.lhb || Date.now() - state.lhbAt > 240000) loadLhb().catch(() => { /* 降级角标 */ });
+      else {
+        renderLhb();
+        if (!state.actors || Date.now() - state.actorsAt > 600000) loadSeatActors().catch(() => renderSeatDirectory());
+        else renderSeatDirectory();
+      }
+      // 伯克希尔 13F：季度数据，入页时过期(>6h)才拉
+      if (!state.brk || Date.now() - (state.brkAt || 0) > 6 * 3600000) loadBrk().catch(() => {});
+      else renderBrk();
     }
     if (view === 'chain') {
       renderChains();
@@ -2414,7 +2573,7 @@
     if (state.chart) state.chart.applyTheme();
     if (state.view === 'watch') renderWatchlist();
     if (state.view === 'chain') renderChains();
-    if (state.view === 'mood') renderMood();   // 分布条与温度计色带跟随红绿模式
+    if (state.tab === 'cn') renderMood();   // 情绪小节在 A股板块内，色带跟随红绿模式
   }
 
   let modalLastFocus = null;
@@ -2451,8 +2610,8 @@
 
   function scheduleMood() {
     schedule('mood', async () => {
-      if (state.view !== 'mood') return;
-      // 热力图调度只在市场视图跑；用户停在情绪页时这里保活，数据超过 30s 就重拉，
+      if (state.tab !== 'cn') return;
+      // 情绪小节并入 A股板块后，保活条件跟着 tab 走；数据超过 30s 就重拉，
       // 否则情绪指数/宽度指标会一直冻结在进入该页时的数值
       if (Date.now() - (state.heatFetchedAt || 0) > 30000) await loadHeatCN();
       await loadMood();
@@ -2550,9 +2709,9 @@
   function renderSelfTest() {
     const probes = [
       ['上证指数', 'sh000001'], ['贵州茅台', 'sh600519'], ['腾讯控股', 'hk00700'],
-      ['苹果', 'usAAPL'], ['BTC', 'BTCUSDT'], ['ETH', 'ETHUSDT'],
+      ['苹果', 'usAAPL'],
       ['美元离岸人民币', 'EM:133.USDCNH'], ['COMEX黄金', 'EM:101.GC00Y'], ['美债10年', 'EM:171.US10Y'],
-    ];
+    ].concat(CRYPTO_ON ? [['BTC', 'BTCUSDT'], ['ETH', 'ETHUSDT']] : []);
     const lines = probes.map(([label, sym]) => {
       const q = state.quotes.get(sym);
       if (!q) return `✗ ${label} 无数据`;
@@ -2744,7 +2903,7 @@
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (/^[0-9]$/.test(e.key)) {
-        const order = ['all', 'cn', 'hkus', 'crypto', 'fxmacro', 'events', 'funds', 'mood', 'chain', 'watch'];
+        const order = ['all', 'cn', 'hkus', 'fxmacro', 'crypto', 'events', 'funds', 'chain', 'watch'];
         const tab = order[+e.key === 0 ? 9 : +e.key - 1];
         if (tab) { setTab(tab); e.preventDefault(); }
         return;
@@ -3019,11 +3178,12 @@
     // 首屏就把产业链渲染好，切到该 tab 时不会先看到空白
     loadChainQuotes().then(renderChains);
     loadGlobe();
-    loadHeatCrypto();
+    if (CRYPTO_ON) loadHeatCrypto();
 
     // 全球事件 + 龙虎榜：开屏后后台预取（K 线事件标记要用，事件页/资金页进来秒显）
     loadEvents().catch(() => { /* 无数据时 UI 显示"采集任务未运行" */ });
     loadLhb().catch(() => { /* 同上 */ });
+    loadBrk().catch(() => { /* 13F 静态 JSON 不可用时资金页显示诚实空态 */ });
     // K 线 marker 点击 → 事件卡（charts.js 抛出，详情页渲染）
     window.Bus.on('chart:event', renderChartEventCard);
 

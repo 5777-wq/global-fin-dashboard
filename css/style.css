@@ -867,6 +867,46 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
   .srow .sr-arrow, .srow-head span:nth-child(5), .srow-head span:nth-child(6),
   .srow-head span:nth-child(7) { display: none; }
 }
+/* 席位档案"上榜记录"与目录共用 .srow，但列语义不同：目录末列是 16px 箭头，
+   档案页末列是上榜原因（长文本）——沿用目录网格会把原因挤成 16px 竖条（bug 截图）。
+   档案页专属网格：原因列吃满剩余宽度并允许换行。 */
+#actorTimeline .srow-head, #actorTimeline .srow {
+  grid-template-columns: 52px minmax(110px, 1.1fr) 46px 84px 84px 84px minmax(0, 2.4fr);
+}
+#actorTimeline .sr-tag { white-space: normal; line-height: 1.55; }
+@media (max-width: 860px) {
+  #actorTimeline .srow-head, #actorTimeline .srow {
+    grid-template-columns: 44px minmax(96px, 1.2fr) 40px 76px minmax(0, 1.7fr);
+  }
+  #actorTimeline .srow .sr-buy, #actorTimeline .srow .sr-sell { display: none; }
+  #actorTimeline .srow-head span:nth-child(5), #actorTimeline .srow-head span:nth-child(6) { display: none; }
+}
+
+/* ==================== 聪明钱 · 伯克希尔 13F 持仓表 ==================== */
+.brow-head, .brow { display: grid; align-items: center; gap: 12px;
+  grid-template-columns: minmax(150px, 1.8fr) 110px 110px 64px 96px; }
+.brow-head { padding: 8px 0; border-bottom: 1px solid var(--border);
+  font-size: 10px; color: var(--text-faint); letter-spacing: 0.08em; }
+.brow { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.brow:hover { background: var(--bg-hover); }
+.br-name { font-size: 12.5px; font-weight: 500; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.br-val, .br-shares, .br-pct { font-size: 12px; text-align: right;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.br-chg { font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em;
+  padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+.br-chg.up { color: var(--up); }
+.br-chg.down { color: var(--down); }
+.br-chg.flat { color: var(--text-tertiary); }
+.br-chg-cell { text-align: right; }
+.brk-exits { margin-top: 10px; font-size: 11px; color: var(--text-tertiary); line-height: 1.7; }
+@media (max-width: 860px) {
+  .brow-head, .brow { grid-template-columns: minmax(110px, 1.5fr) 96px 64px 80px; }
+  .brow .br-shares, .brow-head span:nth-child(3) { display: none; }
+}
+
+/* 加密合规开关：body.no-crypto 下所有 crypto-only 元素整体隐藏（界面上无任何开关入口） */
+body.no-crypto .crypto-only { display: none !important; }
 
 /* 席位档案页 */
 .actor-type { font-size: 10px; padding: 2px 8px; border: 1px solid var(--border);

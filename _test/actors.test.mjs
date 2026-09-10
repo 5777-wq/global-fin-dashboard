@@ -92,6 +92,20 @@ await test('activityToChartEvent：marker 时间=交易日（日频披露，不�
   assert.equal(cs.color, '#2ebd85');
 });
 
+await test('stockName：披露行的证券简称直接透传（档案页不靠行情补名字）', () => {
+  const a = A.activityFromRow(buyRow('1001', '甲营业部', '603186', 1e8, { SECURITY_NAME_ABBR: '建设工业' }));
+  assert.equal(a.stockName, '建设工业');
+  // 同席同股同日合并：名字在任一侧出现都保留
+  const merged = A.mergeRows(
+    [buyRow('1001', '甲营业部', '603186', 1e8)],
+    [sellRow('1001', '甲营业部', '603186', 5e6, { SECURITY_NAME_ABBR: '建设工业' })],
+  );
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].stockName, '建设工业');
+  // 缺失时为空串（渲染层回退 code），绝不造名字
+  assert.equal(A.activityFromRow(buyRow('1002', '乙营业部', '000620', 1e8)).stockName, '');
+});
+
 await test('口径铁律：席位模型无"游资本人"推断字段、无收益预测用语', () => {
   const src = readFileSync(path.join(ROOT, 'js/actors.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   assert.doesNotMatch(src, /游资本人|胜率|收益率|建议买入|建议卖出/);

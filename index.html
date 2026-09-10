@@ -18,7 +18,7 @@ setTimeout(function () {
   if (s && s.parentNode) s.parentNode.removeChild(s);
 }, 2600);
 </script>
-<link rel="stylesheet" href="css/style.css?v=20260909k">
+<link rel="stylesheet" href="css/style.css?v=20260910a">
 </head>
 <body data-updown="red">
 
@@ -41,11 +41,10 @@ setTimeout(function () {
     <button class="tab active" data-tab="all" role="tab" aria-selected="true" aria-controls="view-market">全部</button>
     <button class="tab" data-tab="cn" role="tab" aria-selected="false" aria-controls="view-market">A股</button>
     <button class="tab" data-tab="hkus" role="tab" aria-selected="false" aria-controls="view-market">港美</button>
-    <button class="tab" data-tab="crypto" role="tab" aria-selected="false" aria-controls="view-market">加密</button>
     <button class="tab" data-tab="fxmacro" role="tab" aria-selected="false" aria-controls="view-market">宏观</button>
+    <button class="tab crypto-only" data-tab="crypto" role="tab" aria-selected="false" aria-controls="view-market">加密</button>
     <button class="tab" data-tab="events" role="tab" aria-selected="false" aria-controls="view-events">事件</button>
-    <button class="tab" data-tab="funds" role="tab" aria-selected="false" aria-controls="view-funds">资金</button>
-    <button class="tab" data-tab="mood" role="tab" aria-selected="false" aria-controls="view-mood">情绪</button>
+    <button class="tab" data-tab="funds" role="tab" aria-selected="false" aria-controls="view-funds">聪明钱</button>
     <button class="tab" data-tab="chain" role="tab" aria-selected="false" aria-controls="view-chain">产业链</button>
     <button class="tab" data-tab="watch" role="tab" aria-selected="false" aria-controls="view-watch">自选</button>
   </nav>
@@ -73,11 +72,14 @@ setTimeout(function () {
   <!-- ========== 市场总览 ========== -->
   <section class="view active tab-panel" id="view-market" role="tabpanel" tabindex="-1" aria-label="market">
     <div class="page-head">
-      <h1 class="page-title">全球市场</h1>
+      <h1 class="page-title" id="marketTitle">全球市场</h1>
       <p class="page-sub" id="marketSub">加载中…</p>
     </div>
-    <div class="hero" id="heroStrip" role="group" aria-label="关键指数"></div>
-    <div class="globe-grid" id="globeBar" aria-label="全球指数"><span class="gcell num">全球指数加载中…</span></div>
+    <!-- 全球总览（大指数 + 全球指数条）只在「全部」出现；A股/港美/宏观只看各自的分区 -->
+    <div id="globalOverview">
+      <div class="hero" id="heroStrip" role="group" aria-label="关键指数"></div>
+      <div class="globe-grid" id="globeBar" aria-label="全球指数"><span class="gcell num">全球指数加载中…</span></div>
+    </div>
 
     <div id="cardWall"></div>
 
@@ -88,7 +90,7 @@ setTimeout(function () {
       </div>
       <div class="heat-toolbar">
         <button class="pill active" data-heat="cn">A股全市场</button>
-        <button class="pill" data-heat="crypto">加密市值</button>
+        <button class="pill crypto-only" data-heat="crypto">加密市值</button>
         <button class="pill" id="heatSizeToggle" data-size="cap">面积：市值</button>
         <button class="pill" id="heatTopToggle">范围：市值 Top 500</button>
         <span class="heat-legend" aria-hidden="true"><i></i><b>-3%</b><b>0</b><b>+3%</b></span>
@@ -101,6 +103,43 @@ setTimeout(function () {
         <div class="heat-hint" id="heatHint">滚轮缩放 · 拖拽平移 · 右键复位</div>
         <div class="heat-tip" id="heatTip"></div>
       </div>
+    </div>
+
+    <!-- ========== 情绪与市场宽度（原独立「情绪」tab 并入 A股板块底部） ========== -->
+    <div class="section" id="moodPanel" hidden>
+      <div class="section-head">
+        <h2 class="section-title">情绪与市场宽度</h2>
+        <span class="section-sub" id="moodSub">—</span>
+      </div>
+      <div class="mood-top">
+        <div class="thermo-card" id="thermoCard">
+          <div class="thermo-label">情绪指数</div>
+          <div class="thermo-score num" id="moodScore">--</div>
+          <div class="thermo-band" id="moodBand">—</div>
+          <div class="thermo-track" aria-hidden="true">
+            <span class="thermo-fill" id="moodFill"></span>
+          </div>
+          <div class="thermo-scale" aria-hidden="true"><span>0 恐慌</span><span>50</span><span>100 亢奋</span></div>
+          <div class="thermo-note">上涨家数 ÷ (上涨 + 下跌) × 100</div>
+        </div>
+        <div class="breadth-grid" id="breadthGrid"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <h2 class="section-title">涨跌幅分布</h2>
+          <span class="section-sub" id="distSub">—</span>
+        </div>
+        <div class="dist-wrap" id="distWrap"></div>
+      </div>
+
+      <div class="section">
+        <div class="spark-box" id="moodSpark"></div>
+      </div>
+
+      <!-- ========== 加密 / 美股宽度 ========== -->
+      <div class="mood-crypto crypto-only" id="moodCrypto"></div>
+      <div class="mood-crypto" id="moodUS"></div>
     </div>
   </section>
 
@@ -165,17 +204,17 @@ setTimeout(function () {
         <button class="pill active" data-newsmkt="all">全部</button>
         <button class="pill" data-newsmkt="cn">A股</button>
         <button class="pill" data-newsmkt="global">港美</button>
-        <button class="pill" data-newsmkt="crypto">加密</button>
+        <button class="pill crypto-only" data-newsmkt="crypto">加密</button>
       </div>
       <div class="heat-toolbar news-catbar" id="newsCatBar"></div>
       <div class="news-list" id="newsList"></div>
     </div>
   </section>
 
-  <!-- ========== 资金动向（Smart Money / Public Activity） ========== -->
+  <!-- ========== 聪明钱（Actor-centric Smart Money / Public Activity） ========== -->
   <section class="view tab-panel" id="view-funds" role="tabpanel" tabindex="-1" aria-label="funds">
-    <h1 class="page-title">资金动向</h1>
-    <p class="page-sub">公开披露的资金行为，与公开发言严格区分口径</p>
+    <h1 class="page-title">聪明钱</h1>
+    <p class="page-sub">公开披露的资金行为：席位动向 / 龙虎榜 / 机构持仓，与公开发言严格区分口径</p>
     <div class="section">
       <div class="section-head">
         <span class="sec-no">01</span>
@@ -199,6 +238,16 @@ setTimeout(function () {
     <div class="section">
       <div class="section-head">
         <span class="sec-no">03</span>
+        <h2 class="section-title">机构持仓 · 伯克希尔</h2>
+        <span class="sec-line"></span>
+        <span class="section-sub" id="brkVia">—</span>
+      </div>
+      <div id="brkBox"><div class="sk sk-row"></div></div>
+      <p class="insight-disclaimer">伯克希尔·哈撒韦 13F-HR 为美国 SEC 季度披露的美股多头持仓（滞后最长 45 天，不含空头/衍生品/非美资产），「环比」是与上一期 13F 的股数对比，全部为历史事实陈述，不构成任何建议。特朗普等公众人物的证券交易暂无可靠公开结构化数据源，本页不做编造。</p>
+    </div>
+    <div class="section">
+      <div class="section-head">
+        <span class="sec-no">04</span>
         <h2 class="section-title">公开言论</h2>
         <span class="sec-line"></span>
         <span class="section-sub">Public Statements · 发言 ≠ 交易</span>
@@ -237,42 +286,6 @@ setTimeout(function () {
     </div>
   </section>
 
-  <!-- ========== 市场宽度 / 情绪 ========== -->
-  <section class="view tab-panel" id="view-mood" role="tabpanel" tabindex="-1" aria-label="mood">
-    <h1 class="page-title">市场宽度</h1>
-    <p class="page-sub" id="moodSub">—</p>
-
-    <div class="mood-top">
-      <div class="thermo-card" id="thermoCard">
-        <div class="thermo-label">情绪指数</div>
-        <div class="thermo-score num" id="moodScore">--</div>
-        <div class="thermo-band" id="moodBand">—</div>
-        <div class="thermo-track" aria-hidden="true">
-          <span class="thermo-fill" id="moodFill"></span>
-        </div>
-        <div class="thermo-scale" aria-hidden="true"><span>0 恐慌</span><span>50</span><span>100 亢奋</span></div>
-        <div class="thermo-note">上涨家数 ÷ (上涨 + 下跌) × 100</div>
-      </div>
-      <div class="breadth-grid" id="breadthGrid"></div>
-    </div>
-
-    <div class="section">
-      <div class="section-head">
-        <h2 class="section-title">涨跌幅分布</h2>
-        <span class="section-sub" id="distSub">—</span>
-      </div>
-      <div class="dist-wrap" id="distWrap"></div>
-    </div>
-
-    <div class="section">
-      <div class="spark-box" id="moodSpark"></div>
-    </div>
-
-    <!-- ========== 加密宽度 ========== -->
-    <div class="mood-crypto" id="moodCrypto"></div>
-    <div class="mood-crypto" id="moodUS"></div>
-  </section>
-
   <!-- ========== 产业链 ========== -->
   <section class="view tab-panel" id="view-chain" role="tabpanel" tabindex="-1" aria-label="chain">
     <h1 class="page-title">产业链追踪</h1>
@@ -300,7 +313,8 @@ setTimeout(function () {
     <div>
       数据来源：腾讯财经（A股/港股/美股/全球指数、K线、分时）· 东方财富（A股全市场、外汇、大宗商品、国债收益率、搜索、板块榜、龙虎榜）·
       币安（加密行情与K线）· 新浪财经（滚动新闻）· 世界银行（宏观年度指标，免密钥）·
-      GDELT（全球事件，GitHub Actions 每 30 分钟采集为静态 JSON，浏览器不直连）。行情为第三方公开接口数据，可能延迟，仅供参考，不构成投资建议。
+      GDELT + 新浪7x24（全球事件，GitHub Actions 每 5 分钟采集为静态 JSON，浏览器不直连）· SEC EDGAR（伯克希尔 13F 季度持仓，采集为静态 JSON）。
+      行情为第三方公开接口数据，可能延迟，仅供参考，不构成投资建议。
     </div>
     <div id="updatedLine" style="margin-top:6px"></div>
   </footer>
@@ -352,32 +366,33 @@ setTimeout(function () {
      defer 加载不阻塞开屏，globe.js 只在首次进入"事件"页时才真正使用它们 -->
 <script defer src="lib/globe.gl.min.js?v=2.46.2"></script>
 <script defer src="lib/topojson-client.min.js?v=3.1.0"></script>
-<script src="js/utils.js?v=20260909k"></script>
-<script src="js/store.js?v=20260909k"></script>
-<script src="js/proxy.js?v=20260909k"></script>
-<script src="js/data/universe.js?v=20260909k"></script>
-<script src="js/data/industry-chains.js?v=20260909k"></script>
-<script src="js/data/explain.js?v=20260909k"></script>
-<script src="js/technical.js?v=20260909k"></script>
-<script src="js/flags.js?v=20260909k"></script>
-<script src="js/bus.js?v=20260909k"></script>
-<script src="js/events.js?v=20260909k"></script>
-<script src="js/actors.js?v=20260909k"></script>
-<script src="js/sources/tencent.js?v=20260909k"></script>
-<script src="js/sources/sina.js?v=20260909k"></script>
-<script src="js/sources/eastmoney.js?v=20260909k"></script>
-<script src="js/sources/okx.js?v=20260909k"></script>
-<script src="js/sources/binance.js?v=20260909k"></script>
-<script src="js/sources/fred.js?v=20260909k"></script>
-<script src="js/sources/news.js?v=20260909k"></script>
-<script src="js/sources/worldbank.js?v=20260909k"></script>
-<script src="js/sources/gdelt.js?v=20260909k"></script>
-<script src="js/sources/lhb.js?v=20260909k"></script>
-<script src="js/breadth.js?v=20260909k"></script>
-<script src="js/sessions.js?v=20260909k"></script>
-<script src="js/treemap.js?v=20260909k"></script>
-<script src="js/charts.js?v=20260909k"></script>
-<script src="js/globe.js?v=20260909k"></script>
-<script src="js/app.js?v=20260909k"></script>
+<script src="js/utils.js?v=20260910a"></script>
+<script src="js/store.js?v=20260910a"></script>
+<script src="js/proxy.js?v=20260910a"></script>
+<script src="js/data/universe.js?v=20260910a"></script>
+<script src="js/data/industry-chains.js?v=20260910a"></script>
+<script src="js/data/explain.js?v=20260910a"></script>
+<script src="js/technical.js?v=20260910a"></script>
+<script src="js/flags.js?v=20260910a"></script>
+<script src="js/bus.js?v=20260910a"></script>
+<script src="js/events.js?v=20260910a"></script>
+<script src="js/actors.js?v=20260910a"></script>
+<script src="js/sources/tencent.js?v=20260910a"></script>
+<script src="js/sources/sina.js?v=20260910a"></script>
+<script src="js/sources/eastmoney.js?v=20260910a"></script>
+<script src="js/sources/okx.js?v=20260910a"></script>
+<script src="js/sources/binance.js?v=20260910a"></script>
+<script src="js/sources/fred.js?v=20260910a"></script>
+<script src="js/sources/news.js?v=20260910a"></script>
+<script src="js/sources/worldbank.js?v=20260910a"></script>
+<script src="js/sources/gdelt.js?v=20260910a"></script>
+<script src="js/sources/lhb.js?v=20260910a"></script>
+<script src="js/sources/sec.js?v=20260910a"></script>
+<script src="js/breadth.js?v=20260910a"></script>
+<script src="js/sessions.js?v=20260910a"></script>
+<script src="js/treemap.js?v=20260910a"></script>
+<script src="js/charts.js?v=20260910a"></script>
+<script src="js/globe.js?v=20260910a"></script>
+<script src="js/app.js?v=20260910a"></script>
 </body>
 </html>

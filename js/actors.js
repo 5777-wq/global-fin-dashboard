@@ -35,6 +35,7 @@ const Actors = (() => {
       type: 'seat_activity',
       action,
       code: String(r.SECURITY_CODE),
+      stockName: String(r.SECURITY_NAME_ABBR || '').trim(),   // 披露行自带证券简称，档案页直接用，不靠行情补
       symbol: secidSymbol(r.SECURITY_CODE, r.SECUCODE),
       buy, sell, net,
       tradeDate,
@@ -110,6 +111,7 @@ const Actors = (() => {
       // 同席位同股同日两边都有：合并金额，方向按净额
       prev.buy = prev.buy !== null ? prev.buy : a.buy;
       prev.sell = prev.sell !== null ? prev.sell : a.sell;
+      if (!prev.stockName && a.stockName) prev.stockName = a.stockName;
       prev.net = (prev.buy || 0) - (prev.sell || 0);
       prev.action = prev.net >= 0 ? 'BUY' : 'SELL';
       prev.id = 'act:' + prev.seatCode + ':' + prev.code + ':' + prev.tradeDate + ':' + prev.action;
