@@ -74,7 +74,26 @@ const Geo = (() => {
     return m;
   })();
 
-  return { resolveCountry, ISO2_NAME };
+  /**
+   * 距离最近的国家（地图点选国家用）。用代表坐标平方距离近似，maxDeg 为经纬度容差。
+   * @returns {{country:string, name:string}|null}
+   */
+  function nearestCountry(lat, lng, maxDeg) {
+    let best = null, bestD = (maxDeg || 14) * (maxDeg || 14);
+    for (const [, iso2, name, la, ln] of COUNTRY_RULES) {
+      const d = (la - lat) * (la - lat) + (ln - lng) * (ln - lng);
+      if (d < bestD) { bestD = d; best = { country: iso2, name }; }
+    }
+    return best;
+  }
+
+  /** 中文名 → ISO2（原始事件流的 country 是中文名，接引擎时需要反查） */
+  function iso2OfName(name) {
+    for (const [, iso2, n] of COUNTRY_RULES) if (n === name) return iso2;
+    return null;
+  }
+
+  return { resolveCountry, ISO2_NAME, nearestCountry, iso2OfName };
 })();
 
 if (typeof window !== 'undefined') window.EngineGeo = Geo;

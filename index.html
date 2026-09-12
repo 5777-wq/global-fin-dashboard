@@ -18,7 +18,7 @@ setTimeout(function () {
   if (s && s.parentNode) s.parentNode.removeChild(s);
 }, 2600);
 </script>
-<link rel="stylesheet" href="css/style.css?v=20260910f">
+<link rel="stylesheet" href="css/style.css?v=20260912">
 </head>
 <body data-updown="red">
 
@@ -200,10 +200,13 @@ setTimeout(function () {
         <div class="globe-hint" aria-hidden="true">拖动旋转 · 滚轮缩放 · 点击事件点</div>
       </div>
       <div class="globe-stage" id="mapStage" hidden>
+        <div class="map-layers" id="mapLayers" role="group" aria-label="地图图层"></div>
         <div class="globe-legend" id="mapLegend" aria-hidden="true"></div>
-        <div class="globe-hint" aria-hidden="true">拖动平移 · 滚轮缩放 · 点击事件点</div>
+        <div class="globe-hint" aria-hidden="true">拖动平移 · 滚轮/双指缩放 · 双击放大 · 点事件看详情 · 点空白看国家</div>
       </div>
+      <div class="ev-timeline" id="evTimeline" role="group" aria-label="事件时间轴（72 小时）"></div>
       <div class="event-detail" id="eventDetail" hidden></div>
+      <div class="event-detail" id="countryDetail" hidden></div>
       <div class="news-list" id="eventList"></div>
     </div>
     <div id="evNewsPane" hidden>
@@ -420,8 +423,14 @@ setTimeout(function () {
 <script src="js/sessions.js?v=20260910f"></script>
 <script src="js/treemap.js?v=20260910f"></script>
 <script src="js/charts.js?v=20260910f"></script>
+<script src="js/engine/types.js?v=20260912"></script>
+<script src="js/engine/geo.js?v=20260912"></script>
+<script src="js/engine/news-engine.js?v=20260912"></script>
+<script src="js/engine/event-engine.js?v=20260912"></script>
+<script src="js/engine/impact-engine.js?v=20260912"></script>
+<script src="js/engine/llm-provider.js?v=20260912"></script>
 <script src="js/globe.js?v=20260910f"></script>
-<script src="js/worldmap.js?v=20260910f"></script>
-<script src="js/app.js?v=20260910f"></script>
+<script src="js/worldmap.js?v=20260912"></script>
+<script src="js/app.js?v=20260912"></script>
 </body>
 </html>

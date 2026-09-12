@@ -73,6 +73,8 @@
     globeFailed: false,        // vendor/WebGL 不可用：列表模式兜底，不再反复初始化
     mapReady: false,           // 平面地图实例化完成标记
     mapFailed: false,          // 地图数据/Canvas 不可用：不再反复初始化
+    countryFocus: null,        // { iso2, name }——平面地图点空白命中的国家（右侧国家详情）
+    timelineFrom: null,        // 时间轴点选的时间桶起点（ms）或 null=全部
     lhb: null, lhbAt: 0,       // A股龙虎榜（东财直连，日频披露）
     actors: null, actorsAt: 0, actorsDate: null,   // 席位目录（当日 LHB 明细聚合）
     actor: null, actorGen: 0,  // 当前打开的席位档案
@@ -100,6 +102,7 @@
     'globeBar', 'macroBox', 'voicesList', 'voicesSub', 'newsCatBar',
     'eventsSub', 'globeStage', 'globeMount', 'globeStatus', 'globeFallback', 'globeLegend', 'mapLegend',
     'evGlobePane', 'evNewsPane', 'evTypeBar', 'eventList', 'eventDetail', 'mapStage',
+    'mapLayers', 'evTimeline', 'countryDetail',
     'lhbBox', 'lhbVia', 'evtToggle', 'chartEventCard',
     'seatDir', 'seatDirVia',
     'brkBox', 'brkVia', 'marketTitle', 'globalOverview', 'moodPanel',
@@ -1457,6 +1460,7 @@
     renderEventList();
     renderGlobeLegend();
     applyDetailEvents();   // 新事件可能补上 K 线标记
+    renderTimeline();      // 底部时间轴随事件数据刷新
     syncGeoViews();
   }
 
@@ -1501,9 +1505,13 @@
 
   function renderEventList() {
     if (!el.eventList) return;
-    const list = eventsFiltered();
+    let list = eventsFiltered();
+    if (state.timelineFrom !== null) {       // 时间轴点选：只看该 3h 桶内的事件
+      const to = state.timelineFrom + 3 * 3600 * 1000;
+      list = list.filter(e => e.publishedAt >= state.timelineFrom && e.publishedAt < to);
+    }
     if (!list.length) {
-      el.eventList.innerHTML = '<div class="empty">暂无事件数据 · 采集任务每 5 分钟运行一轮，工作流首次上线约 10 分钟内出数据</div>';
+      el.eventList.innerHTML = '<div class="empty">' + (state.timelineFrom !== null ? '该时间段暂无事件 · 再点一次时间轴柱取消过滤' : '暂无事件数据 · 采集任务每 5 分钟运行一轮，工作流首次上线约 10 分钟内出数据') + '</div>';
       return;
     }
     el.eventList.innerHTML = list.slice(0, 80).map(ev => {
@@ -1546,7 +1554,118 @@
       ${(ev.relatedAssets && ev.relatedAssets.length) ? `<div class="evd-rel"><span class="evd-rel-label">宏观相关</span>${ev.relatedAssets.filter(r => CRYPTO_ON || !isCryptoSym(r.sym)).map(r => {
         const q = findQuote(r.sym);
         return `<button class="rel-chip rel-soft num" data-relsym="${escapeHTML(r.sym)}" title="宏观映射口径（相关≠因果）">${escapeHTML(q ? q.name : r.sym)}</button>`;
-      }).join('')}</div>` : ''}`;
+      }).join('')}</div>` : ''}
+      ${renderImpactEdges(ev)}`;
+  }
+
+  /* ================= 影响边 / 时间轴 / 国家详情（engine 接线） ================= */
+
+  // 采集侧事件类型 → engine 的 NewsCategory（近似映射，推断用）
+  const TYPE2CAT = {
+    central_bank: 'central_bank', policy: 'trade', macro: 'economy', trade: 'trade',
+    conflict: 'war', geopolitics: 'geopolitics', market: 'markets',
+    company: 'economy', disaster: 'natural_disaster',
+  };
+  const IMPACT_KIND_META = {
+    DATA: { label: '机制事实', cls: 'k-data' },
+    CORRELATION: { label: '历史相关', cls: 'k-corr' },
+    AI: { label: 'AI 分析', cls: 'k-ai' },
+  };
+  const DIR_ARROW = { up: '↑', down: '↓', flat: '→' };
+
+  // 单条事件的资产影响边（News → Event → Impact → Asset 的"Impact"段）
+  function renderImpactEdges(ev) {
+    if (!window.ImpactEngine || !window.EngineGeo) return '';
+    const iso = EngineGeo.iso2OfName(ev.country || '') ||
+      (EngineGeo.resolveCountry(ev.title) || {}).country || null;
+    const cat = TYPE2CAT[ev.type] || 'economy';
+    const edges = window.ImpactEngine.inferImpacts({ title: ev.title, countries: iso ? [iso] : [], categories: [cat] });
+    if (!edges.length) return '';
+    const groups = { DATA: [], CORRELATION: [], AI: [] };
+    edges.forEach(e => { (groups[e.evidence.kind] || (groups[e.evidence.kind] = [])).push(e); });
+    const quoteOf = (sym) => {
+      const q = findQuote(sym);
+      if (!q) return '<span class="imp-q imp-q-na num">行情未接入</span>';
+      return `<span class="imp-q num">${escapeHTML(q.name || sym)} ${fmtPrice(q.price)} <b class="${q.pct >= 0 ? 'up' : 'down'}">${q.pct >= 0 ? '+' : ''}${fmtPct(q.pct)}</b></span>`;
+    };
+    const section = (kind) => {
+      const meta = IMPACT_KIND_META[kind];
+      return groups[kind] ? `<div class="imp-group"><span class="imp-kind ${meta.cls}">${meta.label}</span>` +
+        groups[kind].map(e => `<div class="imp-edge">
+          <span class="imp-dir ${e.direction} num">${DIR_ARROW[e.direction] || '→'}</span>
+          <button class="rel-chip num" data-relsym="${escapeHTML(e.assetSymbol)}">${escapeHTML(e.assetSymbol)}</button>
+          ${quoteOf(e.assetSymbol)}
+          <span class="imp-conf num">${Math.round(e.confidence * 100)}%</span>
+          <div class="imp-note">${escapeHTML(e.evidence.note)}${e.historicalCases.length ? ' · 案例：' + escapeHTML(e.historicalCases.map(c => c.label + '（' + c.move + '）').join('；')) : ''}</div>
+        </div>`).join('') + '</div>' : '';
+    };
+    return `<div class="evd-impacts"><div class="evd-rel-label">资产影响（证据分级）</div>
+      ${section('DATA')}${section('CORRELATION')}${section('AI')}
+      <div class="imp-disclaim">影响方向为规则/历史统计口径，非投资建议；点击资产查看行情。</div>
+    </div>`;
+  }
+
+  /* 底部时间轴：最近 72h，3h 一柱；点选桶过滤事件列表 */
+  function renderTimeline() {
+    if (!el.evTimeline) return;
+    const list = eventsFiltered().filter(e => e.lat !== null || e.country);
+    const now = Date.now();
+    const N = 24, step = 3 * 3600 * 1000;
+    const start = now - N * step;
+    const counts = new Array(N).fill(0);
+    list.forEach(e => {
+      const k = Math.floor((e.publishedAt - start) / step);
+      if (k >= 0 && k < N) counts[k]++;
+    });
+    const max = Math.max(1, ...counts);
+    el.evTimeline.innerHTML = `<span class="tl-cap num">-72h</span>` + counts.map((c, i) => {
+      const on = state.timelineFrom !== null && start + i * step === state.timelineFrom;
+      const hh = new Date(start + (i + 1) * step).getHours();
+      return `<button class="tl-col${on ? ' on' : ''}" data-tl="${start + i * step}"
+        title="${c} 条 · ${String(hh).padStart(2, '0')}:00 前" aria-label="${c} 条事件">
+        <i style="height:${c ? Math.round(18 + 82 * Math.log2(1 + c) / Math.log2(1 + max)) : 2}%"></i></button>`;
+    }).join('') + `<span class="tl-cap num">现在</span>`;
+  }
+
+  /* 平面地图图层开关条 */
+  function renderMapLayers() {
+    if (!el.mapLayers || !window.WorldMapView) return;
+    const st = window.WorldMapView.layerState();
+    const defs = [['points', '事件点'], ['grid', '网格']];
+    el.mapLayers.innerHTML = defs.map(([id, label]) =>
+      `<button class="pill${st[id] ? ' active' : ''}" data-maplayer="${id}">${label}</button>`).join('');
+  }
+
+  /* 国家详情（平面地图点空白 / 后续可从列表国家 chip 进入） */
+  function renderCountryDetail(iso2, name) {
+    if (!el.countryDetail) return;
+    const evs = (state.events || []).filter(e => e.country === name);
+    const impRank = { high: 80, med: 60, low: 40 };
+    const sev = evs.length ? Math.round(evs.reduce((s, e) => s + (impRank[e.importance] || 40), 0) / evs.length) : 0;
+    const assets = window.ImpactEngine ? window.ImpactEngine.countryAssets(iso2) : {};
+    const assetRow = ([kind, sym]) => {
+      if (!sym) return '';
+      const q = findQuote(sym);
+      return `<div class="cd-asset"><span class="cd-kind">${kind === 'fx' ? '汇率' : kind === 'equity' ? '股市' : '国债'}</span>
+        <button class="rel-chip num" data-relsym="${escapeHTML(sym)}">${escapeHTML(q ? q.name : sym)}</button>
+        ${q ? `<span class="num">${fmtPrice(q.price)} <b class="${q.pct >= 0 ? 'up' : 'down'}">${q.pct >= 0 ? '+' : ''}${fmtPct(q.pct)}</b></span>` : '<span class="num imp-q-na">行情未接入</span>'}</div>`;
+    };
+    el.countryDetail.hidden = false;
+    el.eventDetail.hidden = true;      // 右侧同一时刻二选一：事件详情 or 国家详情
+    el.countryDetail.innerHTML = `<div class="evd-head">
+        <span class="evd-type">${escapeHTML(name)}</span>
+        <span class="num evd-time">近窗事件 ${evs.length} 条 · 事件热度 ${sev}/100</span>
+        <button class="evd-close" data-cdclose aria-label="关闭国家详情">×</button>
+      </div>
+      <div class="evd-title">${escapeHTML(name)} · 国家视图</div>
+      ${Object.entries(assets).length ? '<div class="cd-assets">' + Object.entries(assets).map(assetRow).join('') + '</div>'
+        : '<div class="empty">该国代表性资产暂未接入行情</div>'}
+      <div class="evd-rel-label" style="margin-top:10px">该国最新事件与新闻</div>
+      ${evs.length ? evs.slice(0, 6).map(e => `<div class="evd-item" data-ev="${escapeHTML(e.id)}" tabindex="0" role="button">
+          <span class="ev-dot" style="background:${window.Events.typeColor(e.type)}"></span>
+          <span class="evd-item-t">${escapeHTML(e.title.slice(0, 56))}</span>
+          <span class="num evd-item-s">${escapeHTML(fmtNewsTime(e.publishedAt))}</span></div>`).join('')
+        : '<div class="empty">窗口内暂无该国事件</div>'}`;
   }
 
   // 地球聚合点（● N EVENTS）点击 → 展开该区域事件清单
@@ -1567,6 +1686,8 @@
 
   function selectGlobalEvent(ev) {
     state.selEvent = ev;
+    state.countryFocus = null;          // 右侧切回事件详情，退出国家视图
+    if (el.countryDetail) el.countryDetail.hidden = true;
     renderEventList();
     renderEventDetail(ev);
     if (state.eventsSub === 'map') {
@@ -1588,6 +1709,11 @@
       onSelect: selectGlobalEvent,
       onCluster: showCluster,
       onStatus: (t) => { state.mapStatusPts = t; if (state.eventsSub === 'map') renderGlobeStatus(); },
+      onCountryPick: ({ lat, lng }) => {
+        // 平面地图空白点击 → 最近国家（25° 容差覆盖多数国家本土）→ 右侧切国家详情
+        const hit = window.EngineGeo && window.EngineGeo.nearestCountry(lat, lng, 25);
+        if (hit) { state.countryFocus = hit; renderCountryDetail(hit.country, hit.name); }
+      },
     }).then(ok => {
       if (ok) {
         state.mapReady = true;
@@ -1640,6 +1766,8 @@
     if (mapMode) {
       ensureWorldMap();
       refreshEventsData();
+      renderMapLayers();
+      renderTimeline();
     } else if (!newsMode) {
       ensureGlobe();
       refreshEventsData();
@@ -2887,6 +3015,26 @@
       // ---- 事件页：子面板切换 / 类型过滤 / 事件行 / 关联资产 / 聚合清单 / 详情卡 ----
       const evsub = e.target.closest('[data-evsub]');
       if (evsub) { setEventsSub(evsub.dataset.evsub); return; }
+      const maplayer = e.target.closest('[data-maplayer]');
+      if (maplayer && window.WorldMapView) {
+        const id = maplayer.dataset.maplayer;
+        window.WorldMapView.setLayerVisible(id, !window.WorldMapView.layerState()[id]);
+        renderMapLayers();
+        return;
+      }
+      const tlCol = e.target.closest('[data-tl]');
+      if (tlCol) {
+        const t = Number(tlCol.dataset.tl);
+        state.timelineFrom = state.timelineFrom === t ? null : t;   // 再点同柱取消过滤
+        renderTimeline();
+        renderEventList();
+        return;
+      }
+      if (e.target.closest('[data-cdclose]')) {
+        if (el.countryDetail) el.countryDetail.hidden = true;
+        state.countryFocus = null;
+        return;
+      }
       const evtype = e.target.closest('[data-evtype]');
       if (evtype) {
         state.eventsType = evtype.dataset.evtype;

@@ -792,6 +792,51 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
   left: 0; top: 0; padding: 8px 10px; border: 1px solid var(--border-hover);
   background: var(--bg-elevated); font-size: 11px; line-height: 1.6;
   color: var(--text-secondary); }
+
+/* 图层控制条（平面地图左上角） */
+.map-layers { position: absolute; z-index: 2; left: 8px; top: 8px; display: flex; gap: 6px; }
+.map-layers .pill { padding: 2px 8px; font-size: 10px; }
+
+/* 底部事件时间轴：最近 72h，3h 一柱，点选过滤事件列表 */
+.ev-timeline { display: flex; gap: 2px; align-items: flex-end; height: 44px;
+  padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+  margin-bottom: 12px; background: var(--bg-card); }
+.tl-cap { font-size: 9px; color: var(--text-faint); letter-spacing: .06em;
+  align-self: center; font-family: var(--font-mono); }
+.tl-col { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end;
+  background: none; border: 0; padding: 0 1px; cursor: pointer; min-width: 6px; }
+.tl-col i { display: block; width: 100%; min-height: 2px; border-radius: 1px 1px 0 0;
+  background: rgba(217,119,87,0.55); transition: background var(--dur-fast) var(--ease-out); }
+.tl-col:hover i { background: rgba(217,119,87,0.85); }
+.tl-col.on i { background: var(--accent-signature); }
+
+/* 事件详情：影响边（证据分级 DATA/CORRELATION/AI 视觉强区分） */
+.evd-impacts { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+.imp-group { margin-top: 8px; }
+.imp-kind { display: inline-block; font-size: 9px; letter-spacing: .12em; padding: 1px 6px;
+  border-radius: 2px; font-family: var(--font-mono); text-transform: uppercase; }
+.imp-kind.k-data { color: #2ebd85; border: 1px solid rgba(46,189,133,.4); }
+.imp-kind.k-corr { color: #e0a83c; border: 1px solid rgba(224,168,60,.4); }
+.imp-kind.k-ai { color: #b06ad4; border: 1px solid rgba(176,106,212,.4); }
+.imp-edge { display: grid; grid-template-columns: 18px auto 1fr auto; gap: 4px 8px;
+  align-items: baseline; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.imp-edge:last-child { border-bottom: 0; }
+.imp-dir { font-family: var(--font-mono); font-weight: 700; }
+.imp-dir.up { color: var(--up); } .imp-dir.down { color: var(--down); }
+.imp-dir.flat { color: var(--text-tertiary); }
+.imp-conf { color: var(--text-faint); font-size: 10px; }
+.imp-note { grid-column: 1 / -1; font-size: 11px; color: var(--text-tertiary); line-height: 1.6; }
+.imp-q { font-size: 11px; color: var(--text-secondary); }
+.imp-q-na { color: var(--text-faint); font-size: 10px; }
+.imp-disclaim { margin-top: 8px; font-size: 10px; color: var(--text-faint); }
+
+/* 国家详情面板（平面地图点空白进入） */
+.cd-assets { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  border-top: 1px solid var(--border); border-left: 1px solid var(--border); margin-top: 8px; }
+.cd-asset { display: flex; gap: 8px; align-items: baseline; padding: 10px 12px;
+  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.cd-kind { font-size: 10px; letter-spacing: .1em; color: var(--text-faint);
+  text-transform: uppercase; min-width: 28px; }
 .globe-legend { position: absolute; z-index: 2; left: 12px; bottom: 10px; display: flex; gap: 12px;
   flex-wrap: wrap; pointer-events: none; }
 .gl-item { display: inline-flex; align-items: center; gap: 5px; font-size: 10px;

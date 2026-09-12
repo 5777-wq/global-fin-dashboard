@@ -34,6 +34,10 @@ window.WorldMapView = (() => {
   let resizeBound = null;
   let fontMono = 'monospace';                   // 帧循环里读 getComputedStyle 会强制样式重算，只取一次
 
+  /* 图层注册表（ARCHITECTURE.md §10）：新图层 = 注册表加项 + render 加一段绘制，
+     visible 由设置面板开关；land 是底图恒显，selection 只在有选中时才有意义 */
+  const layers = { grid: true, points: true, selection: true };
+
   /* ---------- 几何：Feature[] → 世界坐标 Path2D ---------- */
 
   function d3Proj() {
@@ -258,12 +262,18 @@ window.WorldMapView = (() => {
         ctx.restore();
       }
     }
-    drawGrid(x0, x1, y0, y1);
+    if (layers.grid) drawGrid(x0, x1, y0, y1);
     // 事件点的 sx/sy 已是屏幕像素，必须切回屏幕坐标系再画——
     // 否则会再吃一次世界变换（双重变换），点被整体推出地球（真实事故：全部悬在海上）
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    project();
-    clusters.forEach(c => drawPoint(c, t));
+    if (layers.points) {
+      project();
+      clusters.forEach(c => drawPoint(c, t));
+    } else if (selected) {
+      // 点层关闭时选中环仍要可见（否则用户失去选中反馈）
+      const c = clusters.find(x => x.evs.includes(selected));
+      if (c) { project(); drawSelection(c, t); }
+    }
   }
 
   /* ---------- rAF：仅服务选中脉冲与相机动画；交互路径走同步 repaintNow，
@@ -326,7 +336,7 @@ window.WorldMapView = (() => {
     };
 
     canvas.addEventListener('pointerdown', e => {
-      canvas.setPointerCapture(e.pointerId);
+      try { canvas.setPointerCapture(e.pointerId); } catch { /* 指针可能已释放（触屏快速抬起/合成事件） */ }
       pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
       camAnim = null;
       hideTip();
@@ -384,6 +394,12 @@ window.WorldMapView = (() => {
           if (hit) {
             if (hit.count > 1 && hit.evs.length > 1) { if (hooks.onCluster) hooks.onCluster(hit); }
             else if (hooks.onSelect) hooks.onSelect(hit.evs[0]);
+          } else if (hooks.onCountryPick) {
+            // 空白处点击 → 反解经纬度给上层做国家命中（MVP 的"点击国家看详情"入口）
+            let lng = (e.offsetX - view.tx) / view.s - W / 2;
+            lng = ((lng + 180) % 360 + 360) % 360 - 180;   // 循环域归一
+            const lat = H / 2 - (e.offsetY - view.ty) / view.s;
+            if (lat >= -90 && lat <= 90) hooks.onCountryPick({ lat, lng });
           }
         }
       }
@@ -505,6 +521,14 @@ window.WorldMapView = (() => {
 
   return {
     create, setEvents, select, focus, resize, dispose, isReady: () => ready,
+    /* 图层开关（设置面板/图层控制条用） */
+    setLayerVisible: (id, on) => {
+      if (!(id in layers)) return false;
+      layers[id] = !!on;
+      repaintNow();
+      return true;
+    },
+    layerState: () => Object.assign({}, layers),
     /* 纯几何，供离线单测：底图与事件点必须共用 wx/wy，二者一旦分叉点就会落在海里 */
     geo: { bucketForZoomAt, wrapSx, clampTyVal, wx, wy, buildLandPath, d3Proj },
     /* 自检探针：当前视图 + 全部聚簇的（数据坐标→屏幕坐标）投影，用于核对点与底图对齐 */
