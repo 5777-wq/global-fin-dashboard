@@ -773,9 +773,14 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
 .globe-stage { position: relative; height: min(60vh, 520px); margin-bottom: 16px;
   border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
   background: #0a0c0f; }
-.globe-stage > div:first-child { animation: globeIn 0.5s var(--ease-out) both; }
+/* 入场淡入打在真正的内容层上：`:first-child` 是 #globeFallback（hidden），
+   旧写法等于动画永远作用在隐藏元素上，地球/地图本体其实没有入场过渡 */
+/* 地球/地图的内容挂载点：铺满舞台，globe.gl 只允许动这一层 */
+.geo-mount { position: absolute; inset: 0; }
+.globe-stage > .geo-content { animation: globeIn 0.5s var(--ease-out) both; }
 @keyframes globeIn { from { opacity: 0; } to { opacity: 1; } }
-.globe-hint { position: absolute; right: 12px; bottom: 10px; font-size: 10px;
+/* 叠在画布之上：地图画布自带不透明海洋底色，不给 z-index 会盖住图例与提示 */
+.globe-hint { position: absolute; z-index: 2; right: 12px; bottom: 10px; font-size: 10px;
   color: var(--text-faint); letter-spacing: 0.06em; pointer-events: none; }
 
 /* 2D 平面世界地图（与 3D 地球同一容器语言：暗海、灰蓝陆地、类型色事件点） */
@@ -787,7 +792,7 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
   left: 0; top: 0; padding: 8px 10px; border: 1px solid var(--border-hover);
   background: var(--bg-elevated); font-size: 11px; line-height: 1.6;
   color: var(--text-secondary); }
-.globe-legend { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 12px;
+.globe-legend { position: absolute; z-index: 2; left: 12px; bottom: 10px; display: flex; gap: 12px;
   flex-wrap: wrap; pointer-events: none; }
 .gl-item { display: inline-flex; align-items: center; gap: 5px; font-size: 10px;
   color: var(--text-tertiary); font-family: var(--font-mono); }
@@ -855,7 +860,7 @@ html.splash-on .topbar, html.splash-on .main { opacity: 0; }
 .ce-line a { color: var(--accent-signature); text-decoration: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .globe-stage > div:first-child { animation: none; }
+  .globe-stage > .geo-content { animation: none; }
 }
 
 /* ==================== 席位动向 / 席位档案（Actor-centric） ==================== */

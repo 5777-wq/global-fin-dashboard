@@ -98,7 +98,7 @@
     'detailName', 'detailCode', 'detailPrice', 'detailChg', 'detailStar', 'detailStats',
     'detailBack', 'klineChart', 'chartBox', 'detailInsight', 'maToggle',
     'globeBar', 'macroBox', 'voicesList', 'voicesSub', 'newsCatBar',
-    'eventsSub', 'globeStage', 'globeStatus', 'globeFallback', 'globeLegend',
+    'eventsSub', 'globeStage', 'globeMount', 'globeStatus', 'globeFallback', 'globeLegend', 'mapLegend',
     'evGlobePane', 'evNewsPane', 'evTypeBar', 'eventList', 'eventDetail', 'mapStage',
     'lhbBox', 'lhbVia', 'evtToggle', 'chartEventCard',
     'seatDir', 'seatDirVia',
@@ -1492,10 +1492,11 @@
   }
 
   function renderGlobeLegend() {
-    if (!el.globeLegend) return;
-    const types = Array.from(new Set(eventsFiltered().map(e => e.type))).slice(0, 6);
-    el.globeLegend.innerHTML = types.map(t =>
+    const html = Array.from(new Set(eventsFiltered().map(e => e.type))).slice(0, 6).map(t =>
       `<span class="gl-item"><i class="ev-dot" style="background:${window.Events.typeColor(t)}"></i>${escapeHTML(window.Events.typeLabel(t))}</span>`).join('');
+    // 平面地图与 3D 地球共用一套类型色，图例必须两边都在（旧版只画在地球容器里，地图视图没有图例）
+    if (el.globeLegend) el.globeLegend.innerHTML = html;
+    if (el.mapLegend) el.mapLegend.innerHTML = html;
   }
 
   function renderEventList() {
@@ -1600,8 +1601,9 @@
   }
 
   function ensureGlobe() {
-    if (state.globeReady || state.globeFailed || !el.globeStage) return Promise.resolve(null);
-    return window.GlobeView.create(el.globeStage, {
+    // 必须挂到内层 #globeMount：globe.gl 会清空挂载点，挂在 #globeStage 上会连带删掉降级提示/图例
+    if (state.globeReady || state.globeFailed || !el.globeMount) return Promise.resolve(null);
+    return window.GlobeView.create(el.globeMount, {
       onSelect: selectGlobalEvent,
       onCluster: showCluster,
       onStatus: (t) => { state.globeStatusPts = t; renderGlobeStatus(); },

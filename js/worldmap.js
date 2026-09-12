@@ -1,6 +1,7 @@
 /* worldmap.js —— 平面世界地图（事件页 [3D 地球 | 平面地图] 二选一）
-   纯 Canvas 等距圆柱投影（x=lng+180, y=90−lat），与 3D 地球共用同一份
-   assets/globe/countries-110m.json，不引任何新库、无运行时 CDN。
+   底图投影与"跨 180° 经线"的切割交给 d3-geo（本地 vendor，无运行时 CDN）：
+   geoEquirectangular 负责投影，geoPath 默认的 clipAntimeridian 在 ±180° 处
+   把跨线几何切开，球面绕序决定哪一侧是多边形内部——孔洞天然正确。
    视觉与 3D 一致：暗色海洋 + 灰蓝陆地 + 类型色事件点；聚类复用 Events.cluster。
    交互：拖拽平移、滚轮缩放（围绕指针）、点击事件点/聚合簇、悬停提示。
    动画：rAF 单循环只服务选中脉冲与相机平移，静止即停；
@@ -12,6 +13,15 @@ window.WorldMapView = (() => {
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  /* ---------- 唯一投影口径 ----------
+     世界坐标 = 等距圆柱：x = lng + 180 (W/2)，y = 90 − lat (H/2 − lat)。
+     底图（d3Proj/buildLandPath）与事件点（project）必须共用这一口径：
+     曾经底图单独写成 lng + W，陆地整体东移 180°，点全落在海里。
+     下面的 d3 投影参数刻意写成与 wx/wy 恒等（1 rad = 180/π 世界单位），
+     单测里直接断言 proj(lng,lat) === [wx(lng), wy(lat)]。 */
+  const wx = lng => lng + W / 2;
+  const wy = lat => H / 2 - lat;
+
   let container = null, canvas = null, ctx = null, tip = null;
   let hooks = {};
   let land = null;                              // { path: Path2D, rings: n }
@@ -22,54 +32,43 @@ window.WorldMapView = (() => {
   let dpr = 1, raf = 0, pulseT0 = 0, camAnim = null;
   let drag = null, pinch = null, ready = false, failed = false;
   let resizeBound = null;
+  let fontMono = 'monospace';                   // 帧循环里读 getComputedStyle 会强制样式重算，只取一次
 
-  /* ---------- 几何：topo → 世界坐标 Path2D（经线 unwrap 防跨 180° 拉丝） ---------- */
+  /* ---------- 几何：Feature[] → 世界坐标 Path2D ---------- */
 
-  function unwrapRing(pts) {
-    const out = [];
-    let shift = 0, prev = null;
-    for (const p of pts) {
-      if (prev !== null) {
-        if (p[0] + shift - prev > 180) shift -= 360;
-        else if (p[0] + shift - prev < -180) shift += 360;
-      }
-      prev = p[0] + shift;
-      out.push([prev, p[1]]);
-    }
-    return out;
+  function d3Proj() {
+    return window.d3.geoEquirectangular()
+      .scale(180 / Math.PI)                     // 弧度 → 世界单位，1 rad = 180/π
+      .translate([W / 2, H / 2]);               // → x = lng + 180，y = 90 − lat
   }
 
   function buildLandPath(features) {
+    if (!window.d3 || !window.d3.geoPath || !window.d3.geoEquirectangular) return null;
     const path = new Path2D();
     let rings = 0, sample = null, nan = 0;
-    for (const f of features || []) {
-      const g = f.geometry;
-      if (!g) continue;
-      const polys = g.type === 'Polygon' ? [g.coordinates] :
-        g.type === 'MultiPolygon' ? g.coordinates : [];
-      for (const poly of polys) for (const ring of poly) {   // 外环与洞一并填，evenodd 自动成孔
-        if (!ring || ring.length < 3) continue;
-        const u = unwrapRing(ring);
-        const x0 = u[0][0] + W, y0 = H - (u[0][1] + 90);
-        if (!Number.isFinite(x0) || !Number.isFinite(y0)) { nan++; continue; }
-        if (!sample) sample = [Math.round(x0), Math.round(y0)];
-        path.moveTo(x0, y0);
-        for (let i = 1; i < u.length; i++) {
-          const x = u[i][0] + W, y = H - (u[i][1] + 90);
-          if (!Number.isFinite(x) || !Number.isFinite(y)) { nan++; continue; }
-          path.lineTo(x, y);
-        }
-        path.closePath();
-        rings++;
-      }
-    }
+    const ok = (x, y) => {
+      if (Number.isFinite(x) && Number.isFinite(y)) return true;
+      nan++;
+      return false;
+    };
+    // d3 逐环调用 beginPath/moveTo/lineTo/closePath；Path2D 没有 beginPath，
+    // 每环自然成为一个独立子路径，最后一次性 fill() 即得整张底图。
+    const sink = {
+      beginPath() {},
+      moveTo(x, y) {
+        if (!ok(x, y)) return;
+        path.moveTo(x, y);
+        if (!sample) sample = [Math.round(x), Math.round(y)];
+      },
+      lineTo(x, y) { if (ok(x, y)) path.lineTo(x, y); },
+      closePath() { path.closePath(); rings++; },
+      arc() {},                                  // 只画多边形，不需要点符号
+    };
+    window.d3.geoPath(d3Proj(), sink)({ type: 'FeatureCollection', features: features || [] });
     return rings ? { path, rings, sample, nan } : null;
   }
 
-  /* ---------- 投影与聚类 ---------- */
-
-  const wx = lng => lng + 180;
-  const wy = lat => 90 - lat;
+  /* ---------- 聚类 ---------- */
 
   function bucketForZoomAt(z) {
     if (z < 1.5) return 10;
@@ -204,7 +203,7 @@ window.WorldMapView = (() => {
       ctx.globalAlpha = 1;
     }
     if (c.count > 1) {                          // 聚合数标
-      ctx.font = `${10}px ${getComputedStyle(document.body).getPropertyValue('--font-mono') || 'monospace'}`;
+      ctx.font = '10px ' + fontMono;
       ctx.fillStyle = 'rgba(242,242,240,0.78)';
       ctx.textAlign = 'center';
       ctx.fillText('×' + c.count, c.sx, c.sy - c.r - 4);
@@ -252,7 +251,7 @@ window.WorldMapView = (() => {
         ctx.save();
         ctx.translate(k * W, 0);
         ctx.fillStyle = 'rgba(139,158,182,0.32)';        // 陆地：与 3D hex 同色系，略提亮保轮廓可读
-        ctx.fill(land.path, 'evenodd');
+        ctx.fill(land.path);                             // nonzero：d3 切好的环绕序已经自洽（孔洞反向）
         ctx.strokeStyle = 'rgba(255,255,255,0.10)';
         ctx.lineWidth = 1 / view.s;
         ctx.stroke(land.path);
@@ -416,7 +415,11 @@ window.WorldMapView = (() => {
       escapeHTML((ev.title || '').slice(0, 64));
     tip.hidden = false;
     const rect = container.getBoundingClientRect();
-    const x = clamp(mx + 14, 4, rect.width - 220), y = clamp(my + 14, 4, rect.height - 60);
+    // 容器的 CSS 宽高可能都小于提示框尺寸（窄屏），此时 clamp 的上下界会翻转，
+    // 把提示推到画布外——先夹住上界，保证 lo <= hi。
+    const w = tip.offsetWidth || 220, h = tip.offsetHeight || 46;
+    const maxX = Math.max(4, rect.width - w - 8), maxY = Math.max(4, rect.height - h - 8);
+    const x = clamp(mx + 14, 4, maxX), y = clamp(my + 14, 4, maxY);
     tip.style.transform = `translate(${x}px,${y}px)`;
   }
 
@@ -424,7 +427,9 @@ window.WorldMapView = (() => {
 
   function statusText() {
     const n = events.filter(e => e.lat !== null && e.lng !== null).length;
-    return clusters.length + ' 个事件点 · 覆盖 ' + n + ' 条事件';
+    // 远景是聚合视图（一个点代表一片），不说明白会被当成"事件只有这么点"
+    const agg = bucket > 0 ? '（' + bucket + '° 聚合，放大拆分）' : '';
+    return clusters.length + ' 个事件点' + agg + ' · 覆盖 ' + n + ' 条事件';
   }
 
   /* ---------- 对外 API（与 GlobeView 同形） ---------- */
@@ -433,7 +438,7 @@ window.WorldMapView = (() => {
     container = mount;
     hooks = userHooks || {};
     canvas = document.createElement('canvas');
-    canvas.className = 'wmap-canvas';
+    canvas.className = 'wmap-canvas geo-content';
     canvas.setAttribute('aria-label', '平面世界地图：全球事件分布');
     tip = document.createElement('div');
     tip.className = 'wmap-tip';
@@ -441,9 +446,13 @@ window.WorldMapView = (() => {
     container.appendChild(canvas);
     container.appendChild(tip);
     ctx = canvas.getContext('2d');
+    try {
+      fontMono = getComputedStyle(document.body).getPropertyValue('--font-mono').trim() || 'monospace';
+    } catch { fontMono = 'monospace'; }
     bindEvents();
 
-    const topoReady = window.topojson ? Promise.resolve() :
+    // topojson 与 d3 都是 defer 脚本：等 DOMContentLoaded 后它们必定就位
+    const ready2 = (name) => window[name] ? Promise.resolve() :
       new Promise(res => document.addEventListener('DOMContentLoaded', () => res(), { once: true }));
 
     return Promise.all([
@@ -451,9 +460,10 @@ window.WorldMapView = (() => {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       }),
-      topoReady,
+      ready2('topojson'),
+      ready2('d3'),
     ]).then(([topo]) => {
-      land = topo && topo.objects && topo.objects.countries && window.topojson
+      land = topo && topo.objects && topo.objects.countries && window.topojson && window.d3
         ? buildLandPath(window.topojson.feature(topo, topo.objects.countries).features)
         : null;
       failed = !land;
@@ -495,7 +505,8 @@ window.WorldMapView = (() => {
 
   return {
     create, setEvents, select, focus, resize, dispose, isReady: () => ready,
-    geo: { unwrapRing, bucketForZoomAt, wrapSx, clampTyVal },   // 纯几何，供离线单测
+    /* 纯几何，供离线单测：底图与事件点必须共用 wx/wy，二者一旦分叉点就会落在海里 */
+    geo: { bucketForZoomAt, wrapSx, clampTyVal, wx, wy, buildLandPath, d3Proj },
     /* 自检探针：当前视图 + 全部聚簇的（数据坐标→屏幕坐标）投影，用于核对点与底图对齐 */
     _debug: () => ({
       fit, view: Object.assign({}, view), bucket, landRings: land ? land.rings : -1,

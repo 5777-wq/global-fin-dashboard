@@ -26,8 +26,11 @@ window.GlobeView = (() => {
     return 0;
   }
 
+  /* pointRadius 的单位是「球面角度（度）」，不是像素。旧值 0.18~0.47°
+     在默认视距下只有 0.3~0.6px 半径——事件点实际是不可见的。
+     按 360° ≈ 容器高 计，1.1~3.1° 才对应 1.5~4.5px 的可见圆点。 */
   function radiusFor(d) {
-    return +(0.18 + 0.05 * Math.min(4, Math.log2(d.count || 1))).toFixed(3);
+    return +(1.1 + 0.35 * Math.min(4, Math.log2(d.count || 1))).toFixed(2);
   }
 
   function labelFor(d) {
@@ -86,15 +89,15 @@ window.GlobeView = (() => {
         .atmosphereAltitude(0.12)
         .showGraticules(true)
         .hexPolygonsData(lands)
-        .hexPolygonColor(() => 'rgba(126,146,170,0.30)')
+        .hexPolygonColor(() => 'rgba(150,172,198,0.52)')   // 陆地必须比经纬网亮，否则读成"网格球"
         .hexPolygonAltitude(0.006)
         .pointsData([])
         .pointLat(d => d.lat)
         .pointLng(d => d.lng)
         .pointColor(d => d.color)
-        .pointAltitude(d => 0.008 + Math.min(0.018, (d.importance - 1) * 0.006))
+        .pointAltitude(d => 0.006 + Math.min(0.014, (d.importance - 1) * 0.005))
         .pointRadius(d => d.radius)
-        .pointResolution(10)
+        .pointResolution(12)
         .pointsMerge(false)
         .pointsTransitionDuration(500)
         .pointLabel(labelFor)
@@ -113,12 +116,26 @@ window.GlobeView = (() => {
         .width(box.clientWidth || 600)
         .height(box.clientHeight || 480);
 
+      // 经纬网是 three-globe 内部对象，材料写死 lightgrey/opacity .1——在纯黑底上
+      // 比 30% 的灰蓝陆地还亮，视觉主次颠倒。这里防御性调暗，拿不到内部对象也不影响功能。
+      try {
+        const tg = globe.getGlobe && globe.getGlobe();
+        const grat = tg && tg.graticulesObj;
+        if (grat && grat.material) {
+          grat.material.opacity = 0.05;
+          if (grat.material.color && grat.material.color.set) grat.material.color.set('#7f95ad');
+        }
+      } catch { /* 内部结构变了就保持默认外观 */ }
+
       const ctrl = globe.controls();
       ctrl.enableDamping = true;
       ctrl.dampingFactor = 0.08;          // 惯性：拖完缓缓滑行，不"拖一下跳一下"
       ctrl.rotateSpeed = 0.6;
-      ctrl.minDistance = 130;
+      ctrl.minDistance = 118;             // 允许把一小片区域拉到满屏
       ctrl.maxDistance = 520;
+      // 初始视距：默认 altitude 2.5 时球体只占容器高约六成，四周全是空黑；
+      // 2.0 让球体占满七成以上，同时保留"这是个球"的完整轮廓。
+      globe.pointOfView({ lat: 24, lng: 18, altitude: 2.0 }, 0);
       if (!reduceMotion()) {
         ctrl.autoRotate = true;           // globe.gl 每帧 controls.update()，自转即生效
         ctrl.autoRotateSpeed = 0.32;
