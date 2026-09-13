@@ -131,6 +131,30 @@ await test('状态机：陈旧事件 → resolved', () => {
   assert.equal(evs[0].status, 'resolved');
 });
 
+await test('状态机：3 天前的事件 → active（回归：旧代码时间单位错 1000 倍，全永远 updating）', () => {
+  const mk = (title, url, hoursAgo) => ({
+    title, url, source: 'reuters.com', publishedAt: NOW - hoursAgo * 3600000,
+    category: 'geopolitics', country: 'IR', lat: 35.69, lng: 51.39,
+  });
+  // 最新报道距 NOW 72h：> 24h 不再 updating，< 168h 尚未 resolved
+  const evs = W.EventEngine.cluster(
+    [mk('Iran nuclear talks stall in Vienna', 'a', 74), mk('Iran nuclear talks resume briefly', 'b', 72)], NOW);
+  assert.equal(evs.length, 1);
+  assert.equal(evs[0].status, 'active', '72h 前的事件应为 active，实得 ' + evs[0].status);
+});
+
+await test('aiGate 与 needsAiReview 同一谓词（防两处阈值漂移）', () => {
+  const cases = [
+    { confidence: 0.9, severity: 80, newsIds: ['a', 'b', 'c'] },   // 高置信高严重多源
+    { confidence: 0.4, severity: 80, newsIds: ['a', 'b', 'c'] },   // 低置信
+    { confidence: 0.9, severity: 80, newsIds: ['a'] },             // 高严重单源
+    { confidence: 0.9, severity: 40, newsIds: ['a', 'b', 'c'] },   // 低严重高置信
+  ];
+  for (const ev of cases) {
+    assert.equal(W.LLMProvider.aiGate(ev), W.EventEngine.needsAiReview(ev), JSON.stringify(ev));
+  }
+});
+
 await test('needsAiReview：低置信/高严重来源不足才需要 AI', () => {
   const base = { confidence: 0.9, severity: 80, newsIds: ['a', 'b', 'c'] };
   assert.equal(W.EventEngine.needsAiReview(base), false, '高置信高严重多源 → 不需要');
@@ -171,21 +195,62 @@ await test('AnthropicProvider：浏览器上下文拒绝调用（前端无密钥
 
 /* ================= Asset Impact Engine ================= */
 
-await test('impact：日本央行加息 → JPY↑ / JGB收益率↑ / 股指↓，证据分级', () => {
+await test('impact：日本央行加息 → USDJPY↓（USD 基准对已折算）/ 日债↑ / 日经↓，证据分级', () => {
   const ev = { title: '日本央行加息25个基点', countries: ['JP'], categories: ['central_bank'] };
   assert.equal(W.ImpactEngine.eventKind(ev), 'CENTRAL_BANK_HIKE');
   const edges = W.ImpactEngine.inferImpacts(ev);
   const byAsset = Object.fromEntries(edges.map(e => [e.assetSymbol, e]));
-  const fx = byAsset['USDJPY'];
-  assert.ok(fx, '应有 USDJPY 边');
-  assert.equal(fx.direction, 'up');                    // 加息 → 本币（对美元）升值
+  const fx = byAsset['EM:119.USDJPY'];
+  assert.ok(fx, '应有 USDJPY 边（universe symbol，可直接查行情）');
+  // 加息 → 日元升值；USDJPY 以美元为基准，日元升值意味着报价下跌。
+  // 旧实现 direction:'up' 把"本币方向"当成了"报价方向"，语义颠倒且被本测试锁死
+  assert.equal(fx.direction, 'down');
   assert.equal(fx.evidence.kind, 'DATA');
-  const bond = byAsset['JP10Y'];
+  const bond = byAsset['EM:171.JP10Y'];
   assert.ok(bond && bond.direction === 'up' && bond.evidence.kind === 'DATA');
   const eq = byAsset['nikkei'];
   assert.ok(eq && eq.direction === 'down' && eq.confidence < 0.7);
   assert.equal(eq.evidence.kind, 'CORRELATION');       // 概率性结论必须标 CORRELATION，不冒充事实
   assert.ok(eq.evidence.historicalCases || eq.historicalCases.length, 'CORRELATION 应带历史案例');
+});
+
+await test('impact：美联储加息 → USDCNH↑（美元自身是基准，方向不翻）；同 symbol 对 CN 方向必须翻转', () => {
+  const us = W.ImpactEngine.inferImpacts({ title: '美联储加息50个基点', countries: ['US'], categories: ['central_bank'] });
+  const usFx = us.find(e => e.assetSymbol === 'EM:133.USDCNH');
+  assert.ok(usFx && usFx.direction === 'up', '美元强 → USDCNH（USD/CNH）上涨');
+  const cn = W.ImpactEngine.inferImpacts({ title: '中国央行加息10个基点', countries: ['CN'], categories: ['central_bank'] });
+  const cnFx = cn.find(e => e.assetSymbol === 'EM:133.USDCNH');
+  assert.ok(cnFx && cnFx.direction === 'down', '人民币强 → USDCNH（USD/CNH）下跌');
+});
+
+await test('impact：按兵不动无机制性方向 → 显式 0 边（宁缺毋假；旧兜底指向不存在的规则静默空转）', () => {
+  const edges = W.ImpactEngine.inferImpacts({ title: '美联储按兵不动维持利率不变', countries: ['US'], categories: ['central_bank'] });
+  assert.equal(edges.length, 0, '按兵不动应 0 边，实得 ' + edges.length);
+  // central_bank 类别兜底同样落到显式空规则，不再引用未定义 key
+  const fb = W.ImpactEngine.inferImpacts({ title: '央行发布三季度政策执行报告', countries: ['CN'], categories: ['central_bank'] });
+  assert.equal(fb.length, 0, '类别兜底同样应 0 边');
+});
+
+await test('geo：词表边界修复（won/real/dow 不再误报；比索/卢比/克朗按国家限定）', () => {
+  assert.notEqual(W.EngineGeo.resolveCountry('Ukraine won backing from NATO allies')?.country, 'KR');
+  assert.notEqual(W.EngineGeo.resolveCountry('US real estate prices cool further')?.country, 'BR');
+  assert.equal(W.EngineGeo.resolveCountry('US real estate prices cool further')?.country, 'US');
+  assert.notEqual(W.EngineGeo.resolveCountry('Windows outage disrupts factories')?.country, 'US');
+  assert.equal(W.EngineGeo.resolveCountry('Dow Jones futures slip ahead of open')?.country, 'US');
+  assert.equal(W.EngineGeo.resolveCountry('墨西哥比索走弱')?.country, 'MX');
+  assert.equal(W.EngineGeo.resolveCountry('菲律宾比索企稳')?.country, 'PH');
+  assert.equal(W.EngineGeo.resolveCountry('巴基斯坦卢比承压')?.country, 'PK');
+  assert.equal(W.EngineGeo.resolveCountry('印度卢比走低')?.country, 'IN');
+  assert.equal(W.EngineGeo.resolveCountry('挪威克朗上涨')?.country, 'NO');
+  assert.equal(W.EngineGeo.resolveCountry('瑞典克朗下跌')?.country, 'SE');
+});
+
+await test('geo：110m feature.id（ISO numeric）→ ISO2 映射（地图点在多边形接线用）', () => {
+  assert.equal(W.EngineGeo.iso2OfNumeric('156'), 'CN');
+  assert.equal(W.EngineGeo.iso2OfNumeric('840'), 'US');
+  assert.equal(W.EngineGeo.iso2OfNumeric('0408'), 'KP');      // 零填充形态
+  assert.equal(W.EngineGeo.iso2OfNumeric(null), null);
+  assert.equal(W.EngineGeo.iso2OfNumeric('999'), null);       // 未收录（无独立多边形/不在引擎表）
 });
 
 await test('impact：未命中 kind → 类别兜底；未知国家 → 边仍可降级产出', () => {
@@ -197,7 +262,8 @@ await test('impact：未命中 kind → 类别兜底；未知国家 → 边仍�
 
 await test('impact：冲突 → 黄金 risk_off；保险资产暂缺显式 null 不硬造', () => {
   const edges = W.ImpactEngine.inferImpacts({ title: '跨境导弹袭击升级', countries: ['IL'], categories: ['war'] });
-  const gold = edges.find(e => e.assetSymbol === 'GC00Y');
+  const gold = edges.find(e => e.assetSymbol === 'EM:101.GC00Y');   // universe symbol，可直接查行情
+  assert.ok(gold, '应有黄金边（EM:101.GC00Y）');
   assert.ok(gold && gold.direction === 'up');
 });
 

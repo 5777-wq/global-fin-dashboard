@@ -1,0 +1,27 @@
+# 离线确定性测试（9 组，零外部依赖）挂到 push/PR；实网组（breadth/detail/degrade/boards/live）
+# 依赖第三方接口且受深夜清算时段守卫影响，留给本地/手动跑。
+# 数据提交带 [skip ci]，不会触发本 workflow。
+name: ci
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'data/**'
+      - '**.md'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run offline test groups
+        run: node _test/run-all.mjs --offline

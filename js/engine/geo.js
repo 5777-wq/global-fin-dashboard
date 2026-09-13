@@ -4,12 +4,14 @@
    正则流水线，这边是引擎的结构化编码），词表内容允许重叠。 */
 
 const Geo = (() => {
-  /* [正则, ISO2, 国家中文名, lat, lng]  顺序=优先级（具体地名在前；中英文同条规则） */
+  /* [正则, ISO2, 国家中文名, lat, lng]  顺序=优先级（具体地名在前；中英文同条规则）
+     词表纪律：货币名/英文常用词必须带国家限定（"real estate" 曾被 real\b 判给巴西、
+     "won" 曾被判给韩国），裸货币词一律收敛为「国家名+货币」或 ISO 代码。 */
   const COUNTRY_RULES = [
     [/日本|东京|大阪|日銀|日本央行|日元|日经|japan|tokyo|osaka|\bbank of japan\b|\bboj\b|yen|nikkei/i, 'JP', '日本', 35.68, 139.69],
-    [/韩国|首尔|韩元|KOSPI|south korea|seoul|won\b|kospi/i, 'KR', '韩国', 37.57, 126.98],
+    [/韩国|首尔|韩元|KOSPI|south korea|seoul|korean won|\bkrw\b|kospi/i, 'KR', '韩国', 37.57, 126.98],
     [/朝鲜|平壤|north korea|pyongyang/i, 'KP', '朝鲜', 39.03, 125.75],
-    [/印度(?!尼西亚)|新德里|孟买|卢比|印度央行|NIFTY|india(?!nesia)|delhi|mumbai|rupee|nifty/i, 'IN', '印度', 28.61, 77.21],
+    [/印度(?!尼西亚)|新德里|孟买|印度卢比|印度央行|NIFTY|india(?!nesia)|delhi|mumbai|indian rupee|nifty/i, 'IN', '印度', 28.61, 77.21],
     [/印度尼西亚|雅加达|印尼|indonesia|jakarta/i, 'ID', '印度尼西亚', -6.21, 106.85],
     [/中国大陆|中国|北京|上海|深圳|人民币|中国人民银行|A股|证监会|国家统计局|国务院|沪深|china|beijing|shanghai|shenzhen|yuan\b|renminbi|PBOC/i, 'CN', '中国', 39.90, 116.41],
     [/香港|港币|恒生|hong kong|hkd|hang seng/i, 'HK', '香港', 22.32, 114.17],
@@ -34,22 +36,22 @@ const Geo = (() => {
     [/埃及|开罗|egypt|cairo/i, 'EG', '埃及', 30.04, 31.24],
     [/南非|约翰内斯堡|兰特|south africa|johannesburg|rand\b/i, 'ZA', '南非', -26.20, 28.05],
     [/尼日利亚|拉各斯|nigeria|lagos/i, 'NG', '尼日利亚', 6.52, 3.38],
-    [/巴西|圣保罗|雷亚尔|巴西利亚|brazil|sao paulo|real\b/i, 'BR', '巴西', -15.79, -47.88],
-    [/阿根廷|布宜诺斯艾利斯|比索|argentina/i, 'AR', '阿根廷', -34.60, -58.38],
-    [/墨西哥|比索|mexico|peso/i, 'MX', '墨西哥', 19.43, -99.13],
+    [/巴西|圣保罗|雷亚尔|巴西利亚|brazil|sao paulo|brazilian real|\bbrl\b/i, 'BR', '巴西', -15.79, -47.88],
+    [/阿根廷|布宜诺斯艾利斯|阿根廷比索|argentina|argentine peso/i, 'AR', '阿根廷', -34.60, -58.38],
+    [/墨西哥|墨西哥比索|mexican peso|\bmxn\b|mexico/i, 'MX', '墨西哥', 19.43, -99.13],
     [/加拿大|渥太华|加元|多伦多|canada|ottawa|toronto|loonie/i, 'CA', '加拿大', 45.42, -75.70],
     [/澳大利亚|悉尼|澳元|澳洲联储|australia|sydney|aussie|RBA/i, 'AU', '澳大利亚', -35.28, 149.13],
     [/新西兰|惠灵顿|纽元|new zealand|wellington/i, 'NZ', '新西兰', -41.29, 174.78],
     [/新加坡|海峡时报|singapore/i, 'SG', '新加坡', 1.35, 103.82],
     [/泰国|曼谷|泰铢|thailand|baht/i, 'TH', '泰国', 13.76, 100.50],
     [/越南|河内|越南盾|vietnam|dong\b/i, 'VN', '越南', 21.03, 105.85],
-    [/菲律宾|马尼拉|比索|philippines|peso/i, 'PH', '菲律宾', 14.60, 120.98],
+    [/菲律宾|马尼拉|菲律宾比索|philippines|philippine peso|\bphp\b/i, 'PH', '菲律宾', 14.60, 120.98],
     [/马来西亚|吉隆坡|林吉特|malaysia|ringgit/i, 'MY', '马来西亚', 3.14, 101.69],
-    [/巴基斯坦|卡拉奇|卢比|pakistan|karachi/i, 'PK', '巴基斯坦', 33.69, 73.05],
+    [/巴基斯坦|卡拉奇|巴基斯坦卢比|pakistan|karachi|\bpkr\b/i, 'PK', '巴基斯坦', 33.69, 73.05],
     [/波兰|华沙|兹罗提|poland|warsaw|zloty/i, 'PL', '波兰', 52.23, 21.01],
-    [/瑞典|斯德哥尔摩|克朗|sweden|stockholm|krona/i, 'SE', '瑞典', 59.33, 18.07],
-    [/挪威|奥斯陆|克朗|norway|oslo/i, 'NO', '挪威', 59.91, 10.75],
-    [/美国|华盛顿|白宫|美联储|纽约|华尔街|美元|纳斯达克|标普|道琼斯|\bUS\b|\bUSA\b|united states|washington|white house|federal reserve|fed\b|wall street|dollar|nasdaq|\bs&p\b|dow/i, 'US', '美国', 38.90, -77.04],
+    [/瑞典|斯德哥尔摩|瑞典克朗|sweden|stockholm|swedish krona|\bsek\b/i, 'SE', '瑞典', 59.33, 18.07],
+    [/挪威|奥斯陆|挪威克朗|norway|oslo|norwegian krone|\bnok\b/i, 'NO', '挪威', 59.91, 10.75],
+    [/美国|华盛顿|白宫|美联储|纽约|华尔街|美元|纳斯达克|标普|道琼斯|\bUS\b|\bUSA\b|united states|washington|white house|federal reserve|fed\b|wall street|dollar|nasdaq|\bs&p\b|\bdow\b/i, 'US', '美国', 38.90, -77.04],
     [/欧元区|欧盟|欧洲央行|欧央行|布鲁塞尔|eurozone|euro area|\bEU\b|european union|\bECB\b|brussels/i, 'EU', '欧元区', 50.11, 8.68],
     [/联合国|安理会|united nations|security council/i, 'UN', '联合国', 40.75, -73.97],
   ];
@@ -93,7 +95,25 @@ const Geo = (() => {
     return null;
   }
 
-  return { resolveCountry, ISO2_NAME, nearestCountry, iso2OfName };
+  /* world-atlas countries-110m 的 feature.id（ISO 3166-1 numeric，零填充字符串）→ ISO2。
+     供平面地图"点在多边形"命中后接回引擎国家表；HK/SG/EU/UN 在 110m 里没有
+     独立多边形，地图点选由 nearestCountry 兜底。 */
+  const NUMERIC_TO_ISO2 = {
+    32: 'AR', 36: 'AU', 76: 'BR', 124: 'CA', 156: 'CN', 158: 'TW', 250: 'FR', 276: 'DE',
+    275: 'PS', 356: 'IN', 360: 'ID', 364: 'IR', 368: 'IQ', 376: 'IL', 380: 'IT', 392: 'JP',
+    408: 'KP', 410: 'KR', 458: 'MY', 484: 'MX', 528: 'NL', 554: 'NZ', 566: 'NG', 578: 'NO',
+    586: 'PK', 608: 'PH', 616: 'PL', 634: 'QA', 643: 'RU', 682: 'SA', 704: 'VN',
+    710: 'ZA', 724: 'ES', 752: 'SE', 756: 'CH', 764: 'TH', 792: 'TR', 804: 'UA', 818: 'EG',
+    826: 'GB', 840: 'US', 784: 'AE',
+  };
+  /** world-atlas feature.id（可能带零填充）→ ISO2；未收录返回 null */
+  function iso2OfNumeric(id) {
+    if (id === null || id === undefined) return null;
+    const key = String(id).replace(/^0+/, '');
+    return Object.prototype.hasOwnProperty.call(NUMERIC_TO_ISO2, key) ? NUMERIC_TO_ISO2[key] : null;
+  }
+
+  return { resolveCountry, ISO2_NAME, nearestCountry, iso2OfName, iso2OfNumeric };
 })();
 
 if (typeof window !== 'undefined') window.EngineGeo = Geo;

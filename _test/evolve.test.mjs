@@ -228,7 +228,8 @@ await test('全市场去重：失败后 inflight 释放，下次调用重试而�
 
 /* ================= 目标重建：hash → 详情目标 ================= */
 await test('targetFromHashSymbol 前缀规则（与适配器对齐）', () => {
-  // 从 app.js 提取该纯逻辑做同构校验（保持与实现一致的正则/分支）
+  // 从 app.js 提取真函数做同构校验（依赖的互转函数同样抽取真实现，
+  // 不再手写副本——副本曾与实现漂移：北交所 bj 分支丢失）
   const src = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
   const m = src.match(/function targetFromHashSymbol[\s\S]*?\n  \}/);
   assert.ok(m, '函数应存在');
@@ -236,9 +237,13 @@ await test('targetFromHashSymbol 前缀规则（与适配器对齐）', () => {
     'return (' + m[0].replace('function targetFromHashSymbol(sym) {', 'function (sym) {') + ');');
   const EM = { marketOfSecid: (s) => { const mm = +String(s).split('.')[0];
     return mm === 171 ? 'macro' : mm === 101 ? 'commodity' : mm === 119 ? 'fx' : mm === 116 ? 'hk' : mm === 105 ? 'us' : mm === 133 ? 'fx' : 'cn'; } };
-  const tencentOfSecid = (s) => { const [a, b] = s.split('.');
-    return a === '1' ? 'sh' + b : a === '0' ? 'sz' + b : a === '116' ? 'hk' + b : a === '105' ? 'us' + b : null; };
-  const toSecid = (s) => /^sh/.test(s) ? '1.' + s.slice(2) : /^(sz|bj)/.test(s) ? '0.' + s.slice(2) : /^hk/.test(s) ? '116.' + s.slice(2) : /^us/.test(s) ? '105.' + s.slice(2) : null;
+  const grab = (name) => {
+    const mm2 = src.match(new RegExp('function ' + name + '\\([\\w, ]*\\) \\{[\\s\\S]*?\\n  \\}'));
+    assert.ok(mm2, 'app.js 中应存在 ' + name);
+    return new Function('return (' + mm2[0].replace(/^function \w+/, 'function') + ');')();
+  };
+  const tencentOfSecid = grab('tencentOfSecid');
+  const toSecid = grab('toSecid');
 
   const call = (sym) => fn({ EastmoneySource: EM }, tencentOfSecid, toSecid)(sym);
   const crypto = call('BTCUSDT');
@@ -248,6 +253,8 @@ await test('targetFromHashSymbol 前缀规则（与适配器对齐）', () => {
   assert.equal(cn.tencent, 'sh600519');
   assert.equal(cn.secid, '1.600519');
   assert.equal(cn.market, 'cn');
+  const bj = call('bj920001');
+  assert.equal(bj.secid, '0.920001', '北交所 symbol → secid 应走 bj 分支');
   const hk = call('hk00700');
   assert.equal(hk.market, 'hk');
   assert.equal(hk.secid, '116.00700');

@@ -12,7 +12,7 @@ const ImpactEngine = (() => {
 
   const KIND_RULES = [
     ['CENTRAL_BANK_HIKE', /加息|提高利率|rate hike|raises? rates|tighten/i],
-    ['CENTRAL_BANK_CUT', /降息|下调利率|rate cut|cuts? rates|eases?/i],
+    ['CENTRAL_BANK_CUT', /降息|下调利率|rate cut|cuts? rates|\beases?\b/i],
     ['RATE_DECISION_HOLD', /按兵不动|维持利率|holds? rates/i],
     ['ARMED_CONFLICT', /开火|空袭|入侵|导弹|宣战|袭击|invasion|airstrike|missile/i],
     ['SANCTIONS', /制裁|禁运|sanction|embargo/i],
@@ -33,22 +33,34 @@ const ImpactEngine = (() => {
     return null;
   }
 
-  /* ---------- 国家 → 代表性资产（universe symbol 或市场惯用代码） ---------- */
-
+  /* ---------- 国家 → 代表性资产（universe symbol 或市场惯用代码） ----------
+     fx/bond 优先 universe.js 的可查行情 symbol（findQuote 精确匹配 symbol 字段），
+     保证影响边的报价与详情跳转真实可用；无免费源的指数/国债保留市场惯用代码
+     （UI 会诚实标"行情未接入"，不硬造）。 */
   const COUNTRY_ASSETS = {
-    US: { fx: 'USDCNH', equity: 'usINX', bond: 'US10Y' },
-    CN: { fx: 'USDCNH', equity: 'sh000001', bond: 'CN10Y' },
-    JP: { fx: 'USDJPY', equity: 'nikkei', bond: 'JP10Y' },
-    GB: { fx: 'GBPUSD', equity: 'ftse', bond: 'GB10Y' },
-    EU: { fx: 'EURUSD', equity: 'dax', bond: 'DE10Y' },
-    DE: { fx: 'EURUSD', equity: 'dax', bond: 'DE10Y' },
+    US: { fx: 'EM:133.USDCNH', equity: 'usINX', bond: 'EM:171.US10Y' },
+    CN: { fx: 'EM:133.USDCNH', equity: 'sh000001', bond: 'EM:171.CN10Y' },
+    JP: { fx: 'EM:119.USDJPY', equity: 'nikkei', bond: 'EM:171.JP10Y' },
+    GB: { fx: 'EM:119.GBPUSD', equity: 'ftse', bond: 'GB10Y' },
+    EU: { fx: 'EM:119.EURUSD', equity: 'dax', bond: 'EM:171.DE10Y' },
+    DE: { fx: 'EM:119.EURUSD', equity: 'dax', bond: 'EM:171.DE10Y' },
     KR: { fx: 'USDKRW', equity: 'kospi', bond: 'KR10Y' },
-    HK: { fx: 'USDHKD', equity: 'hkHSI', bond: 'HK10Y' },
+    HK: { fx: 'EM:119.USDHKD', equity: 'hkHSI', bond: 'HK10Y' },
     IN: { fx: 'USDINR', equity: 'sensex', bond: 'IN10Y' },
     AU: { fx: 'AUDUSD', equity: 'asx', bond: 'AU10Y' },
     CA: { fx: 'USDCAD', equity: 'tsx', bond: 'CA10Y' },
     BR: { fx: 'USDBRL', equity: 'bovespa', bond: 'BR10Y' },
   };
+
+  /* fx symbol 是否以美元为基准（USD/XXX 报价）：此时事件国货币是分母，
+     "本币升值"意味着该 symbol 价格 DOWN（BOJ 加息 → 日元升值 → USDJPY↓）。
+     US 自身的边（美元强 → USDCNH 涨）不翻。GBPUSD/EURUSD/AUDUSD 本币为基准，不翻。
+     symbol 可能带 universe 前缀（EM:133.USDCNH），先剥前缀再看币种。 */
+  function fxPairInverted(symbol, iso2) {
+    if (typeof symbol !== 'string' || iso2 === 'US') return false;
+    const tail = symbol.includes('.') ? symbol.slice(symbol.indexOf('.') + 1) : symbol;
+    return /^USD/.test(tail);
+  }
 
   /* ---------- 影响规则表（kind → 资产边；evidence.kind 恒为 DATA/CORRELATION） ----------
      direction 语义：资产价格方向（利率/收益率类资产是"价格上行"即 yield up）。
@@ -119,6 +131,9 @@ const ImpactEngine = (() => {
       { assetKind: 'insurance', relationship: 'inverse', direction: 'down', confidence: 0.5,
         evidence: { kind: 'DATA', note: '赔付负债直接增加' } },
     ],
+    /* 按兵不动：没有机制性价格方向，宁缺毋假不产边（此前兜底指向不存在的规则，
+       静默产出 0 条边还伪装成有映射） */
+    RATE_DECISION_HOLD: [],
   };
 
   /** category 兜底映射（eventKind 未命中时给粗粒度边） */
@@ -133,8 +148,8 @@ const ImpactEngine = (() => {
     equity: (iso2) => (ImpactEngine.countryAssets(iso2).equity || null),
     equity_local: (iso2) => (ImpactEngine.countryAssets(iso2).equity || null),
     bond_yield: (iso2) => (ImpactEngine.countryAssets(iso2).bond || null),
-    gold: () => 'GC00Y',
-    oil: () => 'CL00Y',
+    gold: () => 'EM:101.GC00Y',
+    oil: () => 'EM:102.CL00Y',
     crypto: () => 'BTCUSDT',
     insurance: () => null,     // universe 暂无保险业指数，显式 null（宁缺毋假）
   };
@@ -151,14 +166,23 @@ const ImpactEngine = (() => {
     const edges = [];
     for (const rule of RULES[kind]) {
       const symbol = ASSET_SYMBOLS[rule.assetKind] ? ASSET_SYMBOLS[rule.assetKind](iso2) : null;
+      let { relationship, direction } = rule;
+      // USD 基准货币对的报价方向与"本币方向"相反：出边时折算成 symbol 的价格方向
+      if ((rule.assetKind === 'fx_base' || rule.assetKind === 'fx_target')
+        && fxPairInverted(symbol, iso2)) {
+        if (relationship === 'positive') relationship = 'inverse';
+        else if (relationship === 'inverse') relationship = 'positive';
+        if (direction === 'up') direction = 'down';
+        else if (direction === 'down') direction = 'up';
+      }
       edges.push({
         eventKind: kind,
         assetSymbol: symbol || rule.assetKind,
-        relationship: rule.relationship,
-        direction: rule.direction,
+        relationship,
+        direction,
         confidence: rule.confidence,
         evidence: rule.evidence,
-        historicalCases: rule.evidence.historicalCases || rule.historicalCases || [],
+        historicalCases: rule.evidence.historicalCases || [],
       });
     }
     return edges.sort((a, b) => b.confidence - a.confidence);

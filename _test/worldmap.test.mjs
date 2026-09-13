@@ -200,6 +200,18 @@ await test('clampTyVal：纵向拖不露出界，缩得比容器小时锁垂直�
   assert.ok(near(WM.geo.clampTyVal(900, 500, 100 / 180), 200), '缩太小锁垂直居中(2)');
 });
 
+await test('featureAt：空白点选的点在多边形国家命中（修复"点新疆判给巴基斯坦"）', () => {
+  const feats = realFeatures();
+  // 中国内陆（乌鲁木齐）必须命中 id=156 的 feature（world-atlas ISO numeric），海面为 null
+  const cn = WM.geo.featureAt(feats, 87.6, 43.8);
+  assert.ok(cn, '乌鲁木齐应命中陆地多边形');
+  assert.equal(cn.id, '156', '应命中中国 feature（id=156），实得 ' + JSON.stringify(cn));
+  const jp = WM.geo.featureAt(feats, 139.69, 35.68);
+  assert.ok(jp && jp.id === '392', '东京应命中日本（392）');
+  assert.equal(WM.geo.featureAt(feats, 0, 0), null, '大西洋几内亚湾 (0,0) 是海面');
+  assert.equal(WM.geo.featureAt(null, 116, 40), null, '无 feature 列表时无害返回 null');
+});
+
 await test('模块形状：API 表面与 GlobeView 同形，初始未就绪', () => {
   for (const k of ['create', 'setEvents', 'select', 'focus', 'resize', 'dispose', 'isReady']) {
     assert.equal(typeof WM[k], 'function', 'missing api: ' + k);

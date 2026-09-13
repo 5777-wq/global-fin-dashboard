@@ -34,6 +34,14 @@ const NewsSource = (() => {
     return out;
   }
 
+  // 东财 showTime 是北京时间字符串：new Date() 会按浏览器本地时区解析，
+  // 非 UTC+8 用户整批时间戳偏移、与新浪（epoch 秒）混排错位。按固定 +8 解析。
+  function beijingToMs(s) {
+    const m = /(\d{4})-(\d{1,2})-(\d{1,2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(String(s == null ? '' : s));
+    if (!m) return NaN;
+    return Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) - 8 * 3600000;
+  }
+
   async function fromEastmoney(size = 30) {
     // column 348 实测可用（财经要闻）
     const trace = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -45,7 +53,7 @@ const NewsSource = (() => {
       id: 'em:' + (it.code || it.uniqueUrl),
       title: String(it.title).trim(),
       url: it.uniqueUrl || it.url,
-      time: it.showTime ? new Date(it.showTime.replace(/-/g, '/')).getTime() : Date.now(),
+      time: it.showTime ? beijingToMs(it.showTime) : Date.now(),
       source: it.mediaName || '东方财富',
       summary: String(it.summary || '').trim(),
     }));

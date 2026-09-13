@@ -87,8 +87,9 @@ const EngineTypes = {
     markets: 45, politics: 42, technology: 35, social: 35,
   },
 
-  /** 权威源（标题归属 + 严重度加成用），小写域名子串 */
-  TOP_SOURCES: /reuters|bloomberg|ap|afp|bbc|nytimes|wsj|ft\.com|economist|xinhua|cctv/i,
+  /** 权威源（标题归属 + 严重度加成用），小写域名子串。
+     注意是"域名子串"匹配：裸 ap 曾让任何含 "ap" 的域名（japan-times 等）误判权威源 */
+  TOP_SOURCES: /reuters|bloomberg|apnews|afp|bbc|nytimes|wsj|ft\.com|economist|xinhua|cctv/i,
 
   /** 事件状态机阈值（小时）：窗内有新新闻=updating；超窗=active；超过 168h=resolved */
   STATUS_UPDATING_H: 24,

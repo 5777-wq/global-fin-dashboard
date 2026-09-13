@@ -118,9 +118,9 @@ const EventEngine = (() => {
         + (TOP_SOURCES.test(ns[0].source) ? 8 : 0) + freshness * 8));
       const confidence = Math.min(1, +(0.4 + 0.18 * (sources.length - 1) + 0.04 * (ns.length - 1)).toFixed(2));
 
-      const ageH = (nowMs - updatedAt) / 3600 * 1000;
-      const status = ageH <= STATUS_UPDATING_H * 3600 * 1000 ? 'updating'
-        : ageH <= STATUS_RESOLVED_H * 3600 * 1000 ? 'active' : 'resolved';
+      const ageMs = nowMs - updatedAt;
+      const status = ageMs <= STATUS_UPDATING_H * 3600 * 1000 ? 'updating'
+        : ageMs <= STATUS_RESOLVED_H * 3600 * 1000 ? 'active' : 'resolved';
 
       events.push({
         id: 'EV' + NewsEngine.hash(ns.map(n => n.id).join(',')),

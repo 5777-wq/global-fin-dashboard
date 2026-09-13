@@ -25,6 +25,7 @@ window.WorldMapView = (() => {
   let container = null, canvas = null, ctx = null, tip = null;
   let hooks = {};
   let land = null;                              // { path: Path2D, rings: n }
+  let landFeatures = null;                      // Feature[]：空白点选的国家命中（点在多边形）用
   let events = [], clusters = [];
   let bucket = 10;                              // 聚类粒度（度），随缩放变细
   let selected = null, hover = null;
@@ -316,6 +317,24 @@ window.WorldMapView = (() => {
     return best;
   }
 
+  /* 空白点选的国家命中：d3.geoContains 逐个做球面点在多边形判定（110m 全集
+     177 个 feature，单次点击毫秒级）。命中返回 {id, name}（id=ISO 3166-1 numeric，
+     由上层映射回 ISO2）；海面返回 null，由上层退"最近首都"兜底。
+     旧实现只有 nearestCountry：点新疆曾因"距伊斯兰堡更近"判给巴基斯坦。 */
+  function featureAt(features, lng, lat) {
+    if (!features || !window.d3 || !window.d3.geoContains) return null;
+    for (const f of features) {
+      if (window.d3.geoContains(f, [lng, lat])) {
+        return { id: f.id != null ? String(f.id) : null, name: (f.properties && f.properties.name) || null };
+      }
+    }
+    return null;
+  }
+
+  function landFeatureAt(lng, lat) {
+    return featureAt(landFeatures, lng, lat);
+  }
+
   function bindEvents() {
     /* 多指追踪：单指拖拽，双指捏合缩放（触摸/触屏板），Leaflet 同款语义 */
     const pointers = new Map();
@@ -395,11 +414,11 @@ window.WorldMapView = (() => {
             if (hit.count > 1 && hit.evs.length > 1) { if (hooks.onCluster) hooks.onCluster(hit); }
             else if (hooks.onSelect) hooks.onSelect(hit.evs[0]);
           } else if (hooks.onCountryPick) {
-            // 空白处点击 → 反解经纬度给上层做国家命中（MVP 的"点击国家看详情"入口）
+            // 空白处点击 → 反解经纬度 + 陆地多边形命中（未命中给 null）给上层做国家详情
             let lng = (e.offsetX - view.tx) / view.s - W / 2;
             lng = ((lng + 180) % 360 + 360) % 360 - 180;   // 循环域归一
             const lat = H / 2 - (e.offsetY - view.ty) / view.s;
-            if (lat >= -90 && lat <= 90) hooks.onCountryPick({ lat, lng });
+            if (lat >= -90 && lat <= 90) hooks.onCountryPick({ lat, lng, land: landFeatureAt(lng, lat) });
           }
         }
       }
@@ -479,9 +498,10 @@ window.WorldMapView = (() => {
       ready2('topojson'),
       ready2('d3'),
     ]).then(([topo]) => {
-      land = topo && topo.objects && topo.objects.countries && window.topojson && window.d3
-        ? buildLandPath(window.topojson.feature(topo, topo.objects.countries).features)
+      landFeatures = topo && topo.objects && topo.objects.countries && window.topojson && window.d3
+        ? window.topojson.feature(topo, topo.objects.countries).features
         : null;
+      land = landFeatures ? buildLandPath(landFeatures) : null;
       failed = !land;
       ready = !failed;
       fitView();
@@ -515,6 +535,7 @@ window.WorldMapView = (() => {
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
     events = []; clusters = []; selected = null; ready = false;
+    landFeatures = null;
     if (container) container.innerHTML = '';
     canvas = null; ctx = null; tip = null;
   }
@@ -530,10 +551,11 @@ window.WorldMapView = (() => {
     },
     layerState: () => Object.assign({}, layers),
     /* 纯几何，供离线单测：底图与事件点必须共用 wx/wy，二者一旦分叉点就会落在海里 */
-    geo: { bucketForZoomAt, wrapSx, clampTyVal, wx, wy, buildLandPath, d3Proj },
+    geo: { bucketForZoomAt, wrapSx, clampTyVal, wx, wy, buildLandPath, d3Proj, featureAt },
     /* 自检探针：当前视图 + 全部聚簇的（数据坐标→屏幕坐标）投影，用于核对点与底图对齐 */
     _debug: () => ({
       fit, view: Object.assign({}, view), bucket, landRings: land ? land.rings : -1,
+      landFeatures: landFeatures ? landFeatures.length : 0,
       clusters: clusters.map(c => ({
         lat: c.lat, lng: c.lng, sx: c.sx, sy: c.sy, count: c.count,
         country: c.evs[0] ? c.evs[0].country : null,

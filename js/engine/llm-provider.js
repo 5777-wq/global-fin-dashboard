@@ -55,7 +55,13 @@ const LLMProvider = (() => {
   let inFlight = 0;
 
   function aiGate(ev) {
-    return ev.severity >= AI_SCORE_THRESHOLD || ev.confidence < 0.5;
+    // 单一谓词：与 EventEngine.needsAiReview 同源（ARCHITECTURE.md §9/§16），
+    // 防止两处阈值漂移；引擎模块未加载时退回本地等价式。
+    if (typeof EventEngine !== 'undefined' && EventEngine.needsAiReview) {
+      return EventEngine.needsAiReview(ev);
+    }
+    return ev.confidence < 0.5
+      || (ev.severity >= AI_SCORE_THRESHOLD && ev.newsIds.length < 3);
   }
 
   /**
@@ -70,7 +76,10 @@ const LLMProvider = (() => {
     if (hit && Date.now() - hit.cachedAt < AI_CACHE_TTL_MS) return Promise.resolve(hit);
     if (inFlight >= AI_MAX_CONCURRENT) return Promise.resolve(null);
     inFlight++;
-    return provider.summarize(ev).then((r) => {
+    let p;
+    try { p = provider.summarize(ev); }
+    catch (e) { inFlight--; return Promise.reject(e); }   // 同步抛错也要放掉并发名额，否则 3 次后闸门永久关闭
+    return Promise.resolve(p).then((r) => {
       inFlight--;
       const entry = Object.assign({ eventId: ev.id, cachedAt: Date.now() }, r);
       cache.set(ev.id, entry);

@@ -58,7 +58,8 @@ const WorldBankSource = (() => {
       return { iso: c.iso, name: c.name, flag: c.flag, values };
     });
     const filled = rows.reduce((s, r) => s + Object.values(r.values).filter(Boolean).length, 0);
-    if (!filled) return null;   // 全空 → 上层走缓存/降级
+    if (!filled) return null;   // 全空 → 上层走缓存/降级（"空但成功"不 ok 不 fail，角标维持旧态）
+    window.SourceState.ok('worldbank');
     return { rows, indicators: INDICATORS, updatedAt: Date.now(), lastUpdated: null };
   }
 

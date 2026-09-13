@@ -1202,7 +1202,6 @@
       const cached = findQuote(t.symbol);
       const prev = (state.detail.quote && state.detail.quote.prevClose !== null) ? state.detail.quote.prevClose
         : (cached && cached.prevClose !== null && cached.prevClose !== undefined) ? cached.prevClose : null;
-      state.trendData = { sym: t.symbol, data };   // 报价后到时重着色用
       state.chart.setData(data, prev);
     } else {
       state.chart.setData(data);
@@ -1332,7 +1331,11 @@
 
     // 过滤键没变且是"纯顶部插入"（旧条目无删除、相对顺序不变）→ 只插新条目、
     // 原地刷新时间文案；过滤/搜索变化才整体重建
-    const filterKey = state.newsMkt + '|' + state.newsCat + '|' + (state.view === 'news' ? (el.searchInput.value || '').trim().toLowerCase() : '');
+    // 搜索词只在事件页快讯面板参与过滤（与 newsFiltered 的 isNewsView 同口径），
+    // 旧代码判断的 state.view === 'news' 是永假死条件，搜索词永远进不了过滤键
+    const isNewsSearch = state.tab === 'events' && state.eventsSub === 'news';
+    const filterKey = state.newsMkt + '|' + state.newsCat + '|' +
+      (isNewsSearch ? (el.searchInput.value || '').trim().toLowerCase() : '');
     const domSeq = Array.from(el.newsList.querySelectorAll('.news-item')).map(n => n.dataset.id);
     const newList = list.slice(0, shown);
     const domSet = new Set(domSeq);
@@ -1586,18 +1589,24 @@
     const quoteOf = (sym) => {
       const q = findQuote(sym);
       if (!q) return '<span class="imp-q imp-q-na num">行情未接入</span>';
-      return `<span class="imp-q num">${escapeHTML(q.name || sym)} ${fmtPrice(q.price)} <b class="${q.pct >= 0 ? 'up' : 'down'}">${q.pct >= 0 ? '+' : ''}${fmtPct(q.pct)}</b></span>`;
+      // 行情对象的涨跌幅字段是 changePct（旧代码读不存在的 q.pct → 恒 "--" 且恒标跌色）
+      const pct = q.changePct;
+      return `<span class="imp-q num">${escapeHTML(q.name || sym)} ${fmtPrice(q.price)} <b class="${pctClass(pct)}">${fmtPct(pct)}</b></span>`;
     };
     const section = (kind) => {
       const meta = IMPACT_KIND_META[kind];
       return groups[kind] ? `<div class="imp-group"><span class="imp-kind ${meta.cls}">${meta.label}</span>` +
-        groups[kind].map(e => `<div class="imp-edge">
+        groups[kind].map(e => {
+          const q = findQuote(e.assetSymbol);
+          const chipLabel = (q && q.name) || e.assetSymbol;
+          return `<div class="imp-edge">
           <span class="imp-dir ${e.direction} num">${DIR_ARROW[e.direction] || '→'}</span>
-          <button class="rel-chip num" data-relsym="${escapeHTML(e.assetSymbol)}">${escapeHTML(e.assetSymbol)}</button>
+          <button class="rel-chip num" data-relsym="${escapeHTML(e.assetSymbol)}" title="${escapeHTML(e.assetSymbol)}">${escapeHTML(chipLabel)}</button>
           ${quoteOf(e.assetSymbol)}
           <span class="imp-conf num">${Math.round(e.confidence * 100)}%</span>
           <div class="imp-note">${escapeHTML(e.evidence.note)}${e.historicalCases.length ? ' · 案例：' + escapeHTML(e.historicalCases.map(c => c.label + '（' + c.move + '）').join('；')) : ''}</div>
-        </div>`).join('') + '</div>' : '';
+        </div>`;
+        }).join('') + '</div>' : '';
     };
     return `<div class="evd-impacts"><div class="evd-rel-label">资产影响（证据分级）</div>
       ${section('DATA')}${section('CORRELATION')}${section('AI')}
@@ -1646,9 +1655,11 @@
     const assetRow = ([kind, sym]) => {
       if (!sym) return '';
       const q = findQuote(sym);
+      // 涨跌幅读 changePct（q.pct 不存在，曾恒显示 "--" 并恒标跌色）
+      const pct = q ? q.changePct : null;
       return `<div class="cd-asset"><span class="cd-kind">${kind === 'fx' ? '汇率' : kind === 'equity' ? '股市' : '国债'}</span>
         <button class="rel-chip num" data-relsym="${escapeHTML(sym)}">${escapeHTML(q ? q.name : sym)}</button>
-        ${q ? `<span class="num">${fmtPrice(q.price)} <b class="${q.pct >= 0 ? 'up' : 'down'}">${q.pct >= 0 ? '+' : ''}${fmtPct(q.pct)}</b></span>` : '<span class="num imp-q-na">行情未接入</span>'}</div>`;
+        ${q ? `<span class="num">${fmtPrice(q.price)} <b class="${pctClass(pct)}">${fmtPct(pct)}</b></span>` : '<span class="num imp-q-na">行情未接入</span>'}</div>`;
     };
     el.countryDetail.hidden = false;
     el.eventDetail.hidden = true;      // 右侧同一时刻二选一：事件详情 or 国家详情
@@ -1709,9 +1720,16 @@
       onSelect: selectGlobalEvent,
       onCluster: showCluster,
       onStatus: (t) => { state.mapStatusPts = t; if (state.eventsSub === 'map') renderGlobeStatus(); },
-      onCountryPick: ({ lat, lng }) => {
-        // 平面地图空白点击 → 最近国家（25° 容差覆盖多数国家本土）→ 右侧切国家详情
-        const hit = window.EngineGeo && window.EngineGeo.nearestCountry(lat, lng, 25);
+      onCountryPick: ({ lat, lng, land }) => {
+        // 平面地图空白点击：优先用 countries-110m 点在多边形（精确国界命中，
+        // 修复"点新疆判给巴基斯坦"的最近首都算法），海面/无多边形国家再退
+        // 最近首都（25° 容差）兜底 → 右侧切国家详情
+        let hit = null;
+        if (land && land.id && window.EngineGeo) {
+          const iso2 = window.EngineGeo.iso2OfNumeric(land.id);
+          if (iso2) hit = { country: iso2, name: window.EngineGeo.ISO2_NAME[iso2] || land.name || iso2 };
+        }
+        if (!hit && window.EngineGeo) hit = window.EngineGeo.nearestCountry(lat, lng, 25);
         if (hit) { state.countryFocus = hit; renderCountryDetail(hit.country, hit.name); }
       },
     }).then(ok => {
@@ -2021,7 +2039,6 @@
     let d;
     try {
       d = await window.SecSource.getBerkshire();   // 采集静态 JSON（sources/sec.js）
-      window.SourceState.ok('brk');
       if (!d || !Array.isArray(d.holdings)) throw new Error('bad payload');
       window.SourceState.ok('brk');
     } catch {
@@ -2349,6 +2366,19 @@
     return vals.reduce((a, b) => a + b, 0) / vals.length;
   }
 
+  // 热度条刻度：按当日各板块平均涨跌幅的极值归一。renderChains（初始渲染）与
+  // patchChains（10s 增量刷新）必须同源——旧 patchChains 写死 maxAbs=3，
+  // 极端行情日两套刻度会让条长跳变
+  function chainHeatMaxAbs() {
+    const avgs = window.INDUSTRY_CHAINS.map(chain => {
+      const vals = chain.links.flatMap(l => l.stocks)
+        .map(sk => { const q = state.chainQuotes.get(sk.symbol); return q ? q.changePct : null; })
+        .filter(v => v !== null && v !== undefined && !isNaN(v));
+      return Math.abs(vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0);
+    });
+    return Math.max(0.5, ...avgs);
+  }
+
   function renderChains() {
     const stats = window.INDUSTRY_CHAINS.map(chain => {
       const all = chain.links.flatMap(l => l.stocks);
@@ -2371,7 +2401,7 @@
       return { chain, avg, best, worst, mix, total: all.length };
     }).sort((a, b) => (b.avg ?? -99) - (a.avg ?? -99));
 
-    const maxAbs = Math.max(0.5, ...stats.map(x => Math.abs(x.avg || 0)));
+    const maxAbs = chainHeatMaxAbs();
     const rows = stats.map((st, i) => {
       const open = state.openChains.has(st.chain.id);
       const cls = pctClass(st.avg);
@@ -2426,6 +2456,7 @@
 
   // 增量更新：只改数字/条形/颜色，不重建 DOM（否则展开态、hover、焦点每 10s 丢一次）
   function patchChains() {
+    const heatMaxAbs = chainHeatMaxAbs();
     window.INDUSTRY_CHAINS.forEach(chain => {
       // 热度表行
       const row = el.chainList.querySelector(`[data-chain="${chain.id}"]`);
@@ -2452,8 +2483,7 @@
         if (worstEl && worst) worstEl.innerHTML = escapeHTML(worst.name) + ' <b class="down">' + fmtPct(worst.pct) + '</b>';
         const bar = row.querySelector('.cr-heat-bar');
         if (bar && avg !== null) {
-          const maxAbs = 3;   // 与全局涨跌幅口径一致的封顶
-          bar.style.transform = 'scaleX(' + Math.min(1, Math.abs(avg) / maxAbs).toFixed(3) + ')';
+          bar.style.transform = 'scaleX(' + Math.min(1, Math.abs(avg) / heatMaxAbs).toFixed(3) + ')';
         }
       }
       // 环节节点
@@ -2621,24 +2651,14 @@
 
     if (view === 'market') renderCardWall(animate);
     if (view === 'watch') renderWatchlist();
-    if (view === 'funds') {
-      // 公开言论（旧喊单）：55s 过期重拉；龙虎榜 4 分钟；席位目录随 loadLhb 拉取
-      if (!state.voices || Date.now() - (state.voicesAt || 0) > 55000) loadVoices();
-      else renderVoices();
-      if (!state.lhb || Date.now() - state.lhbAt > 240000) loadLhb().catch(() => { /* 降级角标 */ });
-      else {
-        renderLhb();
-        if (!state.actors || Date.now() - state.actorsAt > 600000) loadSeatActors().catch(() => renderSeatDirectory());
-        else renderSeatDirectory();
-      }
-    }
     if (view === 'events') setEventsSub(state.eventsSub);
     if (tab === 'cn') {
       if (state.breadth) renderMood();
       loadMood();
     }
     if (view === 'funds') {
-      // 公开言论（旧喊单）：55s 过期重拉；龙虎榜 4 分钟；席位目录随 loadLhb 拉取
+      // 公开言论（旧喊单）：55s 过期重拉；龙虎榜 4 分钟；席位目录随 loadLhb 拉取。
+      // 注意：此块历史上曾重复出现两次（进资金页全链路双请求），只保留这一份
       if (!state.voices || Date.now() - (state.voicesAt || 0) > 55000) loadVoices();
       else renderVoices();
       if (!state.lhb || Date.now() - state.lhbAt > 240000) loadLhb().catch(() => { /* 降级角标 */ });
@@ -2795,8 +2815,11 @@
       if (state.heatMode === 'cn') await loadHeatCN(); else await loadHeatCrypto();
       const rows = state.heatItems[state.heatMode] || [];
       if (!state.heat) return;
-      if (rows.length === state.heat.count) {
-        // 数量没变（常规情况）：换色换价不重排（文档：刷新只换色不闪白）
+      // 数量对比必须用"当前渲染子集"的块数：A股默认 Top500 只画 500 块，
+      // 拿全市场 5500 行对比恒不相等，会每 30s 白做一次全量重排（"只换色不闪白"失效）
+      const renderCount = heatItemsForRender().length;
+      if (renderCount === state.heat.count) {
+        // 数量没变（常规情况）：换色换价不重排；updatePct 按 code 匹配，直接吃全量行
         state.heat.updatePct(rows);
         renderHeatSub();
       } else {
@@ -2831,8 +2854,9 @@
       await loadVoices();
     }, 60000);
     // 全球事件 JSON：采集任务 5 分钟一轮，页面停留时 60s 拉一次（用户要求的分钟级新鲜度）
+    // globe 与 map 两个子视图都依赖事件数据，只有快讯子面板不需要
     schedule('events', async () => {
-      if (state.view !== 'events' || state.eventsSub !== 'globe') return;
+      if (state.view !== 'events' || state.eventsSub === 'news') return;
       await loadEvents();
     }, 60000);
     // 龙虎榜：日频披露 + 当日 17:00 后陆续更新，5 分钟轮询足够

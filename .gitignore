@@ -5,3 +5,5 @@ _probe_tmp/
 *.bak
 .DS_Store
 Thumbs.db
+.tmp-changes.txt
+.tmp-api-body.json

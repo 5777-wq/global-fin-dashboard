@@ -39,35 +39,24 @@ load('js/utils.js'); load('js/store.js'); load('js/proxy.js');
 load('js/sources/tencent.js'); load('js/sources/eastmoney.js'); load('js/sources/binance.js'); load('js/sources/okx.js');
 const W = vm.runInContext('window', ctx);
 
-/* ---- 复刻 app.js 的代码互转（保持与实现同口径） ---- */
-function toSecid(sym) {
-  if (/^sh/.test(sym)) return '1.' + sym.slice(2);
-  if (/^(sz|bj)/.test(sym)) return '0.' + sym.slice(2);
-  if (/^hk/.test(sym)) return '116.' + sym.slice(2);
-  if (/^us/.test(sym)) return '105.' + sym.slice(2);
-  return null;
-}
-function tencentOfSecid(secid) {
-  const [m, code] = String(secid).split('.');
-  if (m === '1') return 'sh' + code;
-  if (m === '0') return 'sz' + code;
-  if (m === '116') return 'hk' + code;
-  if (['105', '106', '107'].includes(m)) return 'us' + code;
-  return null;
-}
-function calcMA(klines, n) {
-  const out = []; let sum = 0;
-  for (let i = 0; i < klines.length; i++) {
-    sum += klines[i].close;
-    if (i >= n) sum -= klines[i - n].close;
-    out.push({ time: klines[i].time, value: i < n - 1 ? null : +(sum / n).toFixed(3) });
-  }
-  return out;
-}
+/* ---- 从 app.js / charts.js 抽取"真函数"在测（旧写法是手工复刻副本，
+   已发生一次真实漂移：app.js 的 tencentOfSecid 加了北交所 bj 分支，副本没有，
+   测试全绿但验证的不是线上代码） ---- */
+const APP_SRC = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+const CHARTS_SRC = readFileSync(path.join(ROOT, 'js/charts.js'), 'utf8');
+const grabFn = (src, name) => {
+  const m = src.match(new RegExp('function ' + name + '\\([\\w, ]*\\) \\{[\\s\\S]*?\\n  \\}'));
+  if (!m) throw new Error('源码中找不到函数 ' + name);
+  return new Function('return (' + m[0].replace(/^function \w+/, 'function') + ');')();
+};
+const toSecid = grabFn(APP_SRC, 'toSecid');
+const tencentOfSecid = grabFn(APP_SRC, 'tencentOfSecid');
+const calcMA = grabFn(CHARTS_SRC, 'calcMA');
 
 /* ================= 代码互转 ================= */
-await test('代码互转：腾讯 symbol ↔ 东财 secid 双向一致', () => {
-  const pairs = [['sh600519', '1.600519'], ['sz300750', '0.300750'], ['hk00700', '116.00700'], ['usAAPL', '105.AAPL']];
+await test('代码互转：腾讯 symbol ↔ 东财 secid 双向一致（含北交所 bj）', () => {
+  const pairs = [['sh600519', '1.600519'], ['sz300750', '0.300750'], ['hk00700', '116.00700'],
+    ['usAAPL', '105.AAPL'], ['bj920001', '0.920001'], ['sz000858', '0.000858']];
   pairs.forEach(([sym, secid]) => {
     assert.equal(toSecid(sym), secid, sym + ' → secid');
     assert.equal(tencentOfSecid(secid), sym, secid + ' → symbol');

@@ -230,16 +230,12 @@ test('腾讯解析：脏输入不抛异常（空串/截断/乱码）', () => {
 /* ================= MA 均线手算核对 ================= */
 
 test('calcMA: 前 n-1 为 null，第 n 项等于手算均值', () => {
-  // 复刻 charts.js 的 calcMA（charts.js 依赖 LightweightCharts，不在此上下文加载）
-  function calcMA(klines, n) {
-    const out = []; let sum = 0;
-    for (let i = 0; i < klines.length; i++) {
-      sum += klines[i].close;
-      if (i >= n) sum -= klines[i - n].close;
-      out.push({ time: klines[i].time, value: i < n - 1 ? null : +(sum / n).toFixed(3) });
-    }
-    return out;
-  }
+  // 从 charts.js 抽取真函数（charts.js 依赖 LightweightCharts 不能整体加载；
+  // 手工副本曾与实现漂移：真实现有坏收盘价断线逻辑，副本没有）
+  const src = readFileSync(path.join(ROOT, 'js/charts.js'), 'utf8');
+  const m = src.match(/function calcMA\(klines, n\) \{[\s\S]*?\n  \}/);
+  assert.ok(m, 'charts.js 中应存在 calcMA');
+  const calcMA = new Function('return (' + m[0] + ');')();
   const closes = [10, 12, 14, 16, 18, 20, 22];
   const kl = closes.map((c, i) => ({ time: i, close: c }));
   const ma5 = calcMA(kl, 5);
@@ -247,6 +243,19 @@ test('calcMA: 前 n-1 为 null，第 n 项等于手算均值', () => {
   assert.equal(ma5[4].value, (10 + 12 + 14 + 16 + 18) / 5);   // 14
   assert.equal(ma5[5].value, (12 + 14 + 16 + 18 + 20) / 5);   // 16
   assert.equal(ma5[6].value, (14 + 16 + 18 + 20 + 22) / 5);   // 18
+});
+
+test('calcMA: 窗口内坏收盘价 → 该点 null（脏值当 0 加会算出假均线）', () => {
+  const src = readFileSync(path.join(ROOT, 'js/charts.js'), 'utf8');
+  const m = src.match(/function calcMA\(klines, n\) \{[\s\S]*?\n  \}/);
+  const calcMA = new Function('return (' + m[0] + ');')();
+  const kl = [10, 12, null, 16, 18, 20, 22].map((c, i) => ({ time: i, close: c }));
+  const ma3 = calcMA(kl, 3);
+  assert.equal(ma3[2].value, null);   // 窗口 [10,12,null] 含坏值
+  assert.equal(ma3[3].value, null);   // 窗口 [12,null,16] 含坏值
+  assert.equal(ma3[4].value, null);   // 窗口 [null,16,18] 含坏值
+  assert.equal(ma3[5].value, (16 + 18 + 20) / 3);
+  assert.equal(ma3[6].value, (18 + 20 + 22) / 3);
 });
 
 /* ================= 产业链 ================= */

@@ -113,7 +113,9 @@ function toChartTime(epochSec) {
 // 降级链最后一环等于不存在。持久化后跨会话仍有兜底（带时间戳，界面会标注缓存时间）。
 const Cache = {
   _m: new Map(),
-  _persist: ['q:', 'heat:', 'news', 'report:'],
+  // heat:us（美股全市场 ≈1.38 万行）持久化会同步字符串化 ~1.5MB 卡主线程、
+  // 逼近 localStorage 5MB 配额（超了以后每次写入都静默失败），只留内存缓存
+  _persist: ['q:', 'heat:cn', 'heat:crypto', 'news', 'report:'],
   _canPersist(key) { return this._persist.some(p => key.startsWith(p)); },
   set(key, val) {
     const e = { val, at: Date.now() };
@@ -126,7 +128,7 @@ const Cache = {
   get(key, maxAge) {
     const e = this._m.get(key);
     if (!e) return null;
-    if (maxAge && Date.now() - e.at > maxAge) return e; // 过期也返回，由调用方决定
+    if (maxAge && Date.now() - e.at > maxAge) return null;   // 过期视为未命中
     return e;
   },
   raw(key) {

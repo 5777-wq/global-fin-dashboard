@@ -5,8 +5,7 @@
 /* global EngineTypes, EngineGeo */
 
 const NewsEngine = (() => {
-  const { CATEGORIES, DEDUPE_JACCARD } = EngineTypes.CLUSTER ? EngineTypes.CLUSTER : {};
-  const CATS = EngineTypes.CATEGORIES;
+  const { DEDUPE_JACCARD } = EngineTypes.CLUSTER;
 
   /* ---------- 基础工具 ---------- */
 
@@ -22,11 +21,13 @@ const NewsEngine = (() => {
     'as', 'at', 'by', 'with', 'after', 'over', 'amid', 'says', 'say', 'new',
     '的', '了', '在', '与', '将', '或', '后', '前', '称', '报', '道']);
 
-  /* 轻量词干化：去复数/动名词后缀（英语新闻跨源措辞差异的主因） */
+  /* 轻量词干化：去复数/动名词后缀（英语新闻跨源措辞差异的主因）。
+     -es 只去 s（rates→rate、hikes→hike），保证与单数词干相交——
+     旧写法去 es（rates→rat）曾让单复数在 jaccard 里永不相交。 */
   function stem(w) {
     if (w.length > 4 && w.endsWith('ing')) return w.slice(0, -3);
     if (w.length > 4 && w.endsWith('ies')) return w.slice(0, -3) + 'y';
-    if (w.length > 3 && w.endsWith('es')) return w.slice(0, -2);
+    if (w.length > 3 && w.endsWith('es')) return w.slice(0, -1);
     if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) return w.slice(0, -1);
     if (w.length > 4 && w.endsWith('ed')) return w.slice(0, -2);
     return w;

@@ -10,7 +10,7 @@
 ![no build](https://img.shields.io/badge/build-none-000?style=flat-square)
 ![no npm](https://img.shields.io/badge/dependencies-0-000?style=flat-square)
 ![no backend](https://img.shields.io/badge/backend-none-000?style=flat-square)
-![tests](https://img.shields.io/badge/tests-142_passing-2ebd85?style=flat-square)
+![tests](https://img.shields.io/badge/tests-169_passing-2ebd85?style=flat-square)
 ![no keys](https://img.shields.io/badge/API_keys-0-000?style=flat-square)
 
 </div>
@@ -152,8 +152,8 @@ cd android && bash build.sh
 ## 测试 · Tests
 
 ```bash
-node _test/run-all.mjs            # 全部 11 组 138 项
-node _test/run-all.mjs --offline  # 只跑离线 6 组 81 项（断网/CI 友好）
+node _test/run-all.mjs            # 全部 14 组 169 项
+node _test/run-all.mjs --offline  # 只跑离线 9 组 113 项（断网/CI 友好，已挂 GitHub Actions）
 ```
 
 纯 Node 零依赖。覆盖：treemap 面积守恒与视口数学、情绪指数口径与七段分布守恒、技术指标手算核对

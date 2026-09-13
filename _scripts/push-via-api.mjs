@@ -20,11 +20,20 @@ const api = (path, method, bodyObj) => {
 };
 
 const lines = readFileSync(changesFile, 'utf8').split('\n').filter(Boolean);
+if (!lines.length) {
+  console.log('changesFile 为空 —— 本地与远端已知祖先无差异，无需推送');
+  process.exit(0);
+}
 const tree = [];
 for (const line of lines) {
   const tab = line.indexOf('\t');
   const status = line.slice(0, tab).trim();
   const p = line.slice(tab + 1).trim();
+  if (!/^[MAD]$/.test(status)) {
+    // R/C（重命名/复制）应由上游 .sh 用 --no-renames 拆成 A+D；出现即说明清单格式不对
+    console.error('✗ 不支持的变更状态行（预期 M/A/D）: ' + line);
+    process.exit(1);
+  }
   if (status === 'D') { tree.push({ path: p, mode: '100644', type: 'blob', sha: null }); continue; }
   const blob = api('/repos/' + REPO + '/git/blobs', 'POST',
     { content: readFileSync(p).toString('base64'), encoding: 'base64' });
